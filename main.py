@@ -17,6 +17,8 @@ from agents import (
 
 load_dotenv(override=True)
 
+AGENT_TIMEOUT_SECONDS = int(os.getenv("AGENT_TIMEOUT_SECONDS", "120"))
+
 
 @function_tool
 def get_current_time() -> str:
@@ -37,6 +39,13 @@ Core responsibilities:
 - Never claim that a tool was used unless it was actually used.
 - Respond mainly in Bangla when the user speaks Bangla.
 - Keep useful English technical terms where they improve clarity.
+"""
+
+LOCAL_FAST_INSTRUCTIONS = INSTRUCTIONS + """
+- You are running on a small local model. Prefer short, direct answers.
+- For simple tool requests, call the required tool immediately without lengthy reasoning.
+- If the user asks for the current date or time, call get_current_time immediately.
+/no_think
 """
 
 
@@ -68,7 +77,7 @@ def build_agent() -> tuple[Agent, str, str]:
     provider = os.getenv("AI_PROVIDER", "ollama").strip().lower()
 
     if provider == "ollama":
-        model_name = os.getenv("OLLAMA_MODEL", "qwen3:4b").strip()
+        model_name = os.getenv("OLLAMA_MODEL", "qwen3:1.7b").strip()
         base_url = os.getenv(
             "OLLAMA_BASE_URL",
             "http://localhost:11434/v1",
@@ -85,7 +94,7 @@ def build_agent() -> tuple[Agent, str, str]:
 
         agent = Agent(
             name="Masum AI Agent",
-            instructions=INSTRUCTIONS,
+            instructions=LOCAL_FAST_INSTRUCTIONS,
             model=local_model,
             tools=[get_current_time],
         )
@@ -126,6 +135,9 @@ async def main() -> None:
     print("🤖 MASUM AI AGENT v1.0 — LOCAL/FREE MODE")
     print(f"Provider : {provider}")
     print(f"Model    : {model_name}")
+    if provider == "ollama":
+        print("Fast mode: enabled")
+    print(f"Timeout  : {AGENT_TIMEOUT_SECONDS}s")
     print("Type 'exit' or 'quit' to close.")
     print("=" * 60)
 
@@ -140,11 +152,22 @@ async def main() -> None:
             continue
 
         try:
-            result = await Runner.run(agent, user_input)
+            result = await asyncio.wait_for(
+                Runner.run(agent, user_input),
+                timeout=AGENT_TIMEOUT_SECONDS,
+            )
             print(f"\nAgent: {result.final_output}")
+        except asyncio.TimeoutError:
+            print(
+                "\n⏱️ Response timed out. The local model is taking too long. "
+                "Try a shorter prompt or a faster/smaller model."
+            )
         except Exception as error:
             print(f"\n❌ Error: {error}")
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("\n\nAgent stopped cleanly. 👋")
