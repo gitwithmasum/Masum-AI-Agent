@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import os
 import re
@@ -42,6 +43,13 @@ ACADEMIC_SEARCH_MAX_RESULTS = int(os.getenv("ACADEMIC_SEARCH_MAX_RESULTS", "6"))
 OPENALEX_TIMEOUT = int(os.getenv("OPENALEX_TIMEOUT", "20"))
 RESEARCH_TIMEOUT_SECONDS = int(os.getenv("RESEARCH_TIMEOUT_SECONDS", "240"))
 RESEARCH_REPORT_DIR = Path(os.getenv("RESEARCH_REPORT_DIR", "research_reports"))
+
+GITHUB_API_BASE = os.getenv("GITHUB_API_BASE", "https://api.github.com").rstrip("/")
+GITHUB_OWNER = os.getenv("GITHUB_OWNER", "gitwithmasum").strip()
+GITHUB_DEFAULT_REPO = os.getenv("GITHUB_DEFAULT_REPO", "Masum-AI-Agent").strip()
+GITHUB_TIMEOUT = int(os.getenv("GITHUB_TIMEOUT", "20"))
+GITHUB_MAX_ITEMS = int(os.getenv("GITHUB_MAX_ITEMS", "8"))
+GITHUB_FILE_PREVIEW_CHARS = int(os.getenv("GITHUB_FILE_PREVIEW_CHARS", "16000"))
 
 SUPPORTED_FILE_EXTENSIONS = {".pdf", ".txt", ".md", ".docx"}
 
@@ -657,6 +665,344 @@ EVIDENCE BUNDLE:
     return report_text, report_path
 
 
+
+def normalize_github_repo(repo_name: str = "") -> str:
+    value = (repo_name or "").strip().strip("/")
+
+    if not value:
+        return f"{GITHUB_OWNER}/{GITHUB_DEFAULT_REPO}"
+
+    if value.startswith("https://github.com/"):
+        value = value[len("https://github.com/"):].strip("/")
+
+    if value.endswith(".git"):
+        value = value[:-4]
+
+    parts = [part for part in value.split("/") if part]
+    if len(parts) == 1:
+        return f"{GITHUB_OWNER}/{parts[0]}"
+    if len(parts) >= 2:
+        return f"{parts[0]}/{parts[1]}"
+
+    return f"{GITHUB_OWNER}/{GITHUB_DEFAULT_REPO}"
+
+
+def github_api_request(endpoint: str, params: dict | None = None):
+    url = f"{GITHUB_API_BASE}{endpoint}"
+
+    if params:
+        query = urllib.parse.urlencode(
+            {key: value for key, value in params.items() if value is not None}
+        )
+        if query:
+            url = f"{url}?{query}"
+
+    headers = {
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "Masum-AI-Agent/1.5",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+
+    token = os.getenv("GITHUB_TOKEN", "").strip()
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+
+    request = urllib.request.Request(url, headers=headers)
+
+    try:
+        with urllib.request.urlopen(request, timeout=GITHUB_TIMEOUT) as response:
+            return json.load(response), None
+    except urllib.error.HTTPError as error:
+        try:
+            body = json.loads(error.read().decode("utf-8", errors="replace"))
+            message = body.get("message") or str(error)
+        except Exception:
+            message = str(error)
+
+        if error.code == 403 and "rate limit" in message.lower():
+            message += (
+                " Public GitHub API rate limit may be exhausted. "
+                "Wait for reset or optionally configure a GitHub token locally."
+            )
+        return None, f"GitHub API error {error.code}: {message}"
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
+        return None, f"GitHub request failed: {error}"
+
+
+def github_repo_summary_text(repo_name: str = "") -> str:
+    repo = normalize_github_repo(repo_name)
+    data, error = github_api_request(f"/repos/{repo}")
+    if error:
+        return error
+
+    owner = (data.get("owner") or {}).get("login") or "Unknown"
+    license_name = ((data.get("license") or {}).get("spdx_id")) or "Not specified"
+
+    return "\n".join(
+        [
+            f"GitHub repository: {data.get('full_name') or repo}",
+            f"Description: {data.get('description') or 'No description'}",
+            f"Owner: {owner}",
+            f"Visibility: {'Private' if data.get('private') else 'Public'}",
+            f"Default branch: {data.get('default_branch') or 'N/A'}",
+            f"Language: {data.get('language') or 'Not detected'}",
+            f"Stars: {data.get('stargazers_count', 0)}",
+            f"Forks: {data.get('forks_count', 0)}",
+            f"Open issues: {data.get('open_issues_count', 0)}",
+            f"License: {license_name}",
+            f"Created: {data.get('created_at') or 'N/A'}",
+            f"Updated: {data.get('updated_at') or 'N/A'}",
+            f"URL: {data.get('html_url') or f'https://github.com/{repo}'}",
+        ]
+    )
+
+
+@function_tool
+def github_repo_info(repo_name: str = "") -> str:
+    """Get read-only metadata for a public GitHub repository."""
+    return github_repo_summary_text(repo_name)
+
+
+def github_list_files_text(repo_name: str = "", path: str = "", ref: str = "") -> str:
+    repo = normalize_github_repo(repo_name)
+    clean_path = path.strip().strip("/")
+    encoded_path = urllib.parse.quote(clean_path, safe="/")
+    endpoint = f"/repos/{repo}/contents"
+    if encoded_path:
+        endpoint += f"/{encoded_path}"
+
+    data, error = github_api_request(endpoint, {"ref": ref.strip() or None})
+    if error:
+        return error
+
+    if isinstance(data, dict) and data.get("type") == "file":
+        return (
+            f"{repo}/{clean_path} is a file, not a directory. "
+            "Use github_read_file to read it."
+        )
+
+    if not isinstance(data, list):
+        return f"Unexpected GitHub contents response for {repo}/{clean_path}"
+
+    location = clean_path or "/"
+    lines = [f"Files in {repo}:{location}"]
+    for item in data[:50]:
+        item_type = item.get("type") or "unknown"
+        item_path = item.get("path") or item.get("name") or "unknown"
+        size = item.get("size")
+        suffix = f" ({size} bytes)" if item_type == "file" and size is not None else ""
+        lines.append(f"- [{item_type}] {item_path}{suffix}")
+
+    if len(data) > 50:
+        lines.append(f"... {len(data) - 50} more entries not shown")
+
+    return "\n".join(lines)
+
+
+@function_tool
+def github_list_files(repo_name: str = "", path: str = "", ref: str = "") -> str:
+    """List files/directories from a public GitHub repository."""
+    return github_list_files_text(repo_name, path, ref)
+
+
+def github_read_file_text(repo_name: str, path: str, ref: str = "") -> str:
+    repo = normalize_github_repo(repo_name)
+    clean_path = path.strip().strip("/")
+    if not clean_path:
+        return "GitHub file path is empty."
+
+    encoded_path = urllib.parse.quote(clean_path, safe="/")
+    data, error = github_api_request(
+        f"/repos/{repo}/contents/{encoded_path}",
+        {"ref": ref.strip() or None},
+    )
+    if error:
+        return error
+
+    if not isinstance(data, dict) or data.get("type") != "file":
+        return f"Not a readable file: {repo}/{clean_path}"
+
+    encoding = data.get("encoding")
+    content = data.get("content") or ""
+
+    if encoding == "base64":
+        try:
+            raw = base64.b64decode(content)
+            text = raw.decode("utf-8", errors="replace")
+        except Exception as error:
+            return f"Could not decode GitHub file: {error}"
+    else:
+        text = str(content)
+
+    if len(text) > GITHUB_FILE_PREVIEW_CHARS:
+        text = text[:GITHUB_FILE_PREVIEW_CHARS].rstrip() + (
+            f"\n\n[Preview truncated at {GITHUB_FILE_PREVIEW_CHARS} characters.]"
+        )
+
+    return (
+        f"GitHub file: {repo}/{clean_path}\n"
+        f"URL: {data.get('html_url') or ''}\n\n{text}"
+    )
+
+
+@function_tool
+def github_read_file(repo_name: str, path: str, ref: str = "") -> str:
+    """Read a text-like file from a public GitHub repository."""
+    return github_read_file_text(repo_name, path, ref)
+
+
+def github_recent_commits_text(repo_name: str = "", max_items: int | None = None) -> str:
+    repo = normalize_github_repo(repo_name)
+    limit = max_items or GITHUB_MAX_ITEMS
+    limit = max(1, min(limit, 20))
+
+    data, error = github_api_request(f"/repos/{repo}/commits", {"per_page": limit})
+    if error:
+        return error
+
+    if not isinstance(data, list) or not data:
+        return f"No commits found for {repo}."
+
+    lines = [f"Recent commits for {repo}:"]
+    for index, item in enumerate(data, start=1):
+        commit = item.get("commit") or {}
+        author = commit.get("author") or {}
+        message = (commit.get("message") or "").splitlines()[0]
+        sha = (item.get("sha") or "")[:7]
+        lines.append(
+            f"[{index}] {sha} | {author.get('date') or 'N/A'} | "
+            f"{author.get('name') or 'Unknown'} | {message}"
+        )
+
+    return "\n".join(lines)
+
+
+@function_tool
+def github_recent_commits(repo_name: str = "", max_items: int = 8) -> str:
+    """List recent commits from a public GitHub repository."""
+    return github_recent_commits_text(repo_name, max_items)
+
+
+def github_open_issues_text(repo_name: str = "", max_items: int | None = None) -> str:
+    repo = normalize_github_repo(repo_name)
+    limit = max_items or GITHUB_MAX_ITEMS
+    limit = max(1, min(limit, 20))
+
+    data, error = github_api_request(
+        f"/repos/{repo}/issues",
+        {"state": "open", "per_page": min(limit * 2, 40)},
+    )
+    if error:
+        return error
+
+    if not isinstance(data, list):
+        return f"Unexpected GitHub issues response for {repo}."
+
+    issues = [item for item in data if "pull_request" not in item][:limit]
+    if not issues:
+        return f"No open issues found for {repo}."
+
+    lines = [f"Open issues for {repo}:"]
+    for item in issues:
+        labels = ", ".join(label.get("name", "") for label in item.get("labels", []))
+        suffix = f" | labels: {labels}" if labels else ""
+        lines.append(
+            f"#{item.get('number')} | {item.get('title') or 'Untitled'}"
+            f"{suffix}\n  {item.get('html_url') or ''}"
+        )
+
+    return "\n".join(lines)
+
+
+@function_tool
+def github_open_issues(repo_name: str = "", max_items: int = 8) -> str:
+    """List open issues from a public GitHub repository."""
+    return github_open_issues_text(repo_name, max_items)
+
+
+def github_owner_repos_text(owner: str = "") -> str:
+    target_owner = owner.strip() or GITHUB_OWNER
+    data, error = github_api_request(
+        f"/users/{urllib.parse.quote(target_owner)}/repos",
+        {
+            "sort": "updated",
+            "direction": "desc",
+            "per_page": min(max(GITHUB_MAX_ITEMS, 1), 20),
+        },
+    )
+    if error:
+        return error
+
+    if not isinstance(data, list) or not data:
+        return f"No public repositories found for {target_owner}."
+
+    lines = [f"Recent public repositories for {target_owner}:"]
+    for index, item in enumerate(data, start=1):
+        lines.append(
+            f"[{index}] {item.get('name')} | "
+            f"{item.get('language') or 'N/A'} | ⭐ {item.get('stargazers_count', 0)} | "
+            f"{item.get('html_url') or ''}"
+        )
+
+    return "\n".join(lines)
+
+
+@function_tool
+def github_owner_repos(owner: str = "") -> str:
+    """List recently updated public repositories for a GitHub user."""
+    return github_owner_repos_text(owner)
+
+
+def build_github_analysis_bundle(repo_name: str = "") -> str:
+    repo = normalize_github_repo(repo_name)
+    sections = [
+        github_repo_summary_text(repo),
+        github_list_files_text(repo),
+        github_recent_commits_text(repo, max_items=6),
+        github_open_issues_text(repo, max_items=6),
+    ]
+    return "\n\n=== NEXT SECTION ===\n\n".join(sections)
+
+
+async def analyze_github_repo(agent: Agent, repo_name: str = "") -> str:
+    repo = normalize_github_repo(repo_name)
+    bundle = await asyncio.to_thread(build_github_analysis_bundle, repo)
+
+    prompt = f"""
+Act as a careful software repository reviewer.
+
+Review this GitHub repository snapshot:
+
+{repo}
+
+Using ONLY the repository data below, produce a concise assessment with:
+## Repository Snapshot
+## What Looks Good
+## Potential Problems / Risks
+## Next 5 Recommended Actions
+
+Do not invent files, issues, commits, tests, or CI status that are not shown.
+If the evidence is insufficient for a claim, say so.
+
+REPOSITORY DATA:
+{bundle}
+""".strip()
+
+    try:
+        result = await asyncio.wait_for(
+            Runner.run(agent, prompt),
+            timeout=AGENT_TIMEOUT_SECONDS,
+        )
+        return str(result.final_output)
+    except asyncio.TimeoutError:
+        return (
+            "GitHub analysis timed out in the local model. "
+            "Raw repository snapshot:\n\n" + bundle
+        )
+    except Exception as error:
+        return f"GitHub analysis failed: {error}\n\n{bundle}"
+
+
 INSTRUCTIONS = """
 You are Masum AI Agent, a modular personal AI assistant.
 
@@ -676,6 +1022,8 @@ Core responsibilities:
 - Treat possible research gaps as hypotheses to verify, not established facts.
 - For questions about local documents, use list_local_files, read_local_file, or file_search.
 - Only claim facts about a local file when supported by text returned from a file tool.
+- For GitHub repository questions, use the GitHub read-only tools.
+- Never claim to have changed a GitHub repository; v1.5 GitHub tools are read-only.
 """
 
 LOCAL_FAST_INSTRUCTIONS = INSTRUCTIONS + """
@@ -686,6 +1034,7 @@ LOCAL_FAST_INSTRUCTIONS = INSTRUCTIONS + """
 - If the user asks for academic papers or literature, call academic_search immediately.
 - If the user asks what files are available, call list_local_files immediately.
 - If the user asks about a named local document, prefer file_search with the user's question.
+- If the user asks about a GitHub repository, use the relevant GitHub tool immediately.
 /no_think
 """
 
@@ -723,6 +1072,12 @@ def build_agent() -> tuple[Agent, str, str]:
         list_local_files,
         read_local_file,
         file_search,
+        github_repo_info,
+        github_list_files,
+        github_read_file,
+        github_recent_commits,
+        github_open_issues,
+        github_owner_repos,
     ]
 
     if provider == "ollama":
@@ -871,7 +1226,7 @@ async def main() -> None:
         return
 
     print("=" * 64)
-    print("🤖 MASUM AI AGENT v1.4 — RESEARCH AGENT")
+    print("🤖 MASUM AI AGENT v1.5 — GITHUB AGENT")
     print(f"Provider : {provider}")
     print(f"Model    : {model_name}")
     if provider == "ollama":
@@ -881,9 +1236,12 @@ async def main() -> None:
     print(f"Academic : OpenAlex ({ACADEMIC_SEARCH_MAX_RESULTS} papers)")
     print(f"Files    : {KNOWLEDGE_DIR} (PDF/TXT/MD/DOCX)")
     print(f"Reports  : {RESEARCH_REPORT_DIR}")
+    print(f"GitHub   : read-only | default {GITHUB_OWNER}/{GITHUB_DEFAULT_REPO}")
     print(f"Timeout  : chat {AGENT_TIMEOUT_SECONDS}s | research {RESEARCH_TIMEOUT_SECONDS}s")
     print(
-        "Commands : /papers <topic>, /research <topic>, /reports, "
+        "Commands : /repo [owner/repo], /repos [owner], /repo-files [repo] :: [path], "
+        "/repo-read <repo> :: <path>, /repo-commits [repo], /repo-issues [repo], "
+        "/repo-analyze [repo], /papers <topic>, /research <topic>, /reports, "
         "/read-report <file>, /files, /read <file>, "
         "/ask-file <file> :: <question>, /search <query>, "
         "/memory, /clear-memory, exit"
@@ -956,6 +1314,78 @@ async def main() -> None:
                 print(f"\n💾 Report saved: {report_path}")
             continue
 
+
+        if user_input.lower() == "/repo":
+            print(f"\n{github_repo_summary_text()}")
+            continue
+
+        if user_input.lower().startswith("/repo "):
+            repo_name = user_input[len("/repo "):].strip()
+            print(f"\n{github_repo_summary_text(repo_name)}")
+            continue
+
+        if user_input.lower() == "/repos":
+            print(f"\n{github_owner_repos_text()}")
+            continue
+
+        if user_input.lower().startswith("/repos "):
+            owner = user_input[len("/repos "):].strip()
+            print(f"\n{github_owner_repos_text(owner)}")
+            continue
+
+        if user_input.lower().startswith("/repo-files"):
+            payload = user_input[len("/repo-files"):].strip()
+            if "::" in payload:
+                repo_name, path = (
+                    part.strip()
+                    for part in payload.split("::", 1)
+                )
+            else:
+                repo_name, path = payload, ""
+            print(f"\n{github_list_files_text(repo_name, path)}")
+            continue
+
+        if user_input.lower().startswith("/repo-read "):
+            payload = user_input[len("/repo-read "):].strip()
+            if "::" not in payload:
+                print("\nUsage: /repo-read <owner/repo> :: <path>")
+                continue
+            repo_name, path = (
+                part.strip()
+                for part in payload.split("::", 1)
+            )
+            print(f"\n{github_read_file_text(repo_name, path)}")
+            continue
+
+        if user_input.lower() == "/repo-commits":
+            print(f"\n{github_recent_commits_text()}")
+            continue
+
+        if user_input.lower().startswith("/repo-commits "):
+            repo_name = user_input[len("/repo-commits "):].strip()
+            print(f"\n{github_recent_commits_text(repo_name)}")
+            continue
+
+        if user_input.lower() == "/repo-issues":
+            print(f"\n{github_open_issues_text()}")
+            continue
+
+        if user_input.lower().startswith("/repo-issues "):
+            repo_name = user_input[len("/repo-issues "):].strip()
+            print(f"\n{github_open_issues_text(repo_name)}")
+            continue
+
+        if user_input.lower() == "/repo-analyze":
+            print("\n🐙 Analyzing default GitHub repository...")
+            print(f"\n{await analyze_github_repo(agent)}")
+            continue
+
+        if user_input.lower().startswith("/repo-analyze "):
+            repo_name = user_input[len("/repo-analyze "):].strip()
+            print(f"\n🐙 Analyzing {normalize_github_repo(repo_name)}...")
+            print(f"\n{await analyze_github_repo(agent, repo_name)}")
+            continue
+
         if user_input.lower().startswith("/search"):
             query = user_input[len("/search"):].strip()
             await run_direct_search(query)
@@ -977,7 +1407,7 @@ async def main() -> None:
         except asyncio.TimeoutError:
             print(
                 "\n⏱️ Response timed out. Try a direct command such as "
-                "/papers, /research, /search, or /ask-file."
+                "/repo, /repo-analyze, /papers, /research, /search, or /ask-file."
             )
         except Exception as error:
             print(f"\n❌ Error: {error}")
