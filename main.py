@@ -4,6 +4,7 @@ import os
 import urllib.error
 import urllib.request
 from datetime import datetime
+from pathlib import Path
 
 from dotenv import load_dotenv
 from agents import (
@@ -11,6 +12,7 @@ from agents import (
     AsyncOpenAI,
     OpenAIChatCompletionsModel,
     Runner,
+    SQLiteSession,
     function_tool,
     set_tracing_disabled,
 )
@@ -18,6 +20,8 @@ from agents import (
 load_dotenv(override=True)
 
 AGENT_TIMEOUT_SECONDS = int(os.getenv("AGENT_TIMEOUT_SECONDS", "120"))
+MEMORY_SESSION_ID = os.getenv("MEMORY_SESSION_ID", "masum-main").strip()
+MEMORY_DB_PATH = Path(os.getenv("MEMORY_DB_PATH", "data/memory.db"))
 
 
 @function_tool
@@ -39,6 +43,7 @@ Core responsibilities:
 - Never claim that a tool was used unless it was actually used.
 - Respond mainly in Bangla when the user speaks Bangla.
 - Keep useful English technical terms where they improve clarity.
+- Use conversation memory naturally when it is relevant.
 """
 
 LOCAL_FAST_INSTRUCTIONS = INSTRUCTIONS + """
@@ -124,21 +129,39 @@ def build_agent() -> tuple[Agent, str, str]:
     )
 
 
+def build_memory_session() -> SQLiteSession:
+    MEMORY_DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    return SQLiteSession(
+        MEMORY_SESSION_ID,
+        str(MEMORY_DB_PATH),
+    )
+
+
+async def print_memory_info(session: SQLiteSession) -> None:
+    items = await session.get_items()
+    print(f"\n🧠 Memory session : {MEMORY_SESSION_ID}")
+    print(f"🗄️ Memory database: {MEMORY_DB_PATH}")
+    print(f"💬 Stored items   : {len(items)}")
+
+
 async def main() -> None:
     try:
         agent, provider, model_name = build_agent()
+        session = build_memory_session()
     except RuntimeError as error:
         print(f"\n❌ Startup error: {error}\n")
         return
 
     print("=" * 60)
-    print("🤖 MASUM AI AGENT v1.0 — LOCAL/FREE MODE")
+    print("🤖 MASUM AI AGENT v1.1 — PERSISTENT MEMORY")
     print(f"Provider : {provider}")
     print(f"Model    : {model_name}")
     if provider == "ollama":
         print("Fast mode: enabled")
+    print(f"Memory   : {MEMORY_SESSION_ID}")
+    print(f"Database : {MEMORY_DB_PATH}")
     print(f"Timeout  : {AGENT_TIMEOUT_SECONDS}s")
-    print("Type 'exit' or 'quit' to close.")
+    print("Commands : /memory, /clear-memory, exit")
     print("=" * 60)
 
     while True:
@@ -148,12 +171,25 @@ async def main() -> None:
             print("\nAgent: Goodbye Masum 👋")
             break
 
+        if user_input.lower() == "/memory":
+            await print_memory_info(session)
+            continue
+
+        if user_input.lower() == "/clear-memory":
+            await session.clear_session()
+            print("\n🧠 Conversation memory cleared.")
+            continue
+
         if not user_input:
             continue
 
         try:
             result = await asyncio.wait_for(
-                Runner.run(agent, user_input),
+                Runner.run(
+                    agent,
+                    user_input,
+                    session=session,
+                ),
                 timeout=AGENT_TIMEOUT_SECONDS,
             )
             print(f"\nAgent: {result.final_output}")
