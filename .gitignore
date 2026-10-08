@@ -11,3 +11,7 @@ data/
 # Local/private knowledge files
 knowledge/*
 !knowledge/.gitkeep
+
+# Local research reports
+research_reports/*
+!research_reports/.gitkeep

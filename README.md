@@ -1,29 +1,27 @@
 # Masum AI Agent
 
-A modular, local-first AI Agent built with Python, OpenAI Agents SDK, and Ollama. It runs locally without OpenAI API credits and includes persistent memory, live web search, and local File/PDF Intelligence.
+A local-first AI Agent built with Python, OpenAI Agents SDK, Ollama, DDGS, and OpenAlex.
 
 ## Current version
 
-**v1.3 — File/PDF Intelligence**
+**v1.4 — Research Agent**
 
-### Current capabilities
+The project runs locally without OpenAI API credits and now supports academic literature search plus structured research-report generation.
+
+## Capabilities
 
 - Local AI through Ollama
-- No OpenAI API credits required
 - Persistent SQLite conversation memory
-- Live public web search
-- Local PDF reading
-- Local TXT and Markdown reading
-- Local DOCX reading
-- Keyword-based document excerpt retrieval
-- Direct file commands for reliable use with small local models
-- Current-time tool
-- Bangla-friendly behavior
-- Clean timeout and Ctrl+C handling
+- Live web search
+- Local PDF/TXT/Markdown/DOCX intelligence
+- OpenAlex scholarly-paper search
+- Academic metadata: title, authors, year, citations, DOI, abstract when available
+- Structured research planning reports
+- Candidate research-gap generation with evidence safeguards
+- Markdown report saving
+- Bangla-friendly interaction
 
-## Update an existing installation
-
-From the project folder:
+## Update
 
 ```powershell
 git pull origin main
@@ -31,7 +29,20 @@ git pull origin main
 pip install -r requirements.txt
 ```
 
-Your local `.env` is not overwritten by Git. Add these settings if they are missing:
+No new Python package is required specifically for OpenAlex because v1.4 uses Python's built-in HTTP libraries.
+
+## .env
+
+Keep your existing settings and add:
+
+```env
+ACADEMIC_SEARCH_MAX_RESULTS=6
+OPENALEX_TIMEOUT=20
+RESEARCH_TIMEOUT_SECONDS=240
+RESEARCH_REPORT_DIR=research_reports
+```
+
+A complete local setup can look like:
 
 ```env
 AI_PROVIDER=ollama
@@ -51,29 +62,12 @@ FILE_MAX_BYTES=15728640
 FILE_PREVIEW_CHARS=12000
 FILE_CHUNK_CHARS=3500
 FILE_MAX_CHUNKS=4
+
+ACADEMIC_SEARCH_MAX_RESULTS=6
+OPENALEX_TIMEOUT=20
+RESEARCH_TIMEOUT_SECONDS=240
+RESEARCH_REPORT_DIR=research_reports
 ```
-
-## Add documents
-
-Put documents inside:
-
-```text
-Masum-AI-Agent/
-└── knowledge/
-    ├── notes.txt
-    ├── research-paper.pdf
-    ├── assignment.docx
-    └── roadmap.md
-```
-
-Supported formats:
-
-- PDF
-- TXT
-- Markdown
-- DOCX
-
-The contents of `knowledge/` are ignored by Git, so private documents are not uploaded to GitHub.
 
 ## Run
 
@@ -84,61 +78,69 @@ python main.py
 Expected startup:
 
 ```text
-🤖 MASUM AI AGENT v1.3 — FILE/PDF INTELLIGENCE
+🤖 MASUM AI AGENT v1.4 — RESEARCH AGENT
 Provider : ollama
 Model    : qwen3:1.7b
-Memory   : masum-main
-Web      : enabled (5 results)
-Files    : knowledge (PDF/TXT/MD/DOCX)
+Academic : OpenAlex (6 papers)
+Reports  : research_reports
 ```
 
-## File commands
-
-List available documents:
+## Academic-paper search
 
 ```text
-/files
+/papers machine learning for early diabetes prediction
 ```
 
-Preview a file:
+The agent returns relevant scholarly works with available authors, year, citation count, DOI, source, abstract excerpt, and access link.
+
+## Build a research report
 
 ```text
-/read research-paper.pdf
+/research machine learning for early diabetes prediction
 ```
 
-Ask a question about a file:
+The Research Agent gathers:
+
+1. scholarly evidence from OpenAlex,
+2. current web evidence,
+3. then asks the local model to create a structured planning report.
+
+The report includes:
+
+- Executive Summary
+- Key Findings
+- Literature Snapshot
+- Potential Research Gaps
+- Candidate Research Questions
+- Methodology Options
+- Possible Data / Dataset Sources
+- Risks and Limitations
+- Practical Next Steps
+- Sources
+
+Reports are saved locally:
 
 ```text
-/ask-file research-paper.pdf :: এই paper-এর main objective কী?
+research_reports/
+└── machine-learning-for-early-diabetes-prediction-YYYYMMDD-HHMMSS.md
 ```
 
-Another example:
+Research reports are ignored by Git by default.
+
+## Report commands
 
 ```text
-/ask-file assignment.docx :: এখানে blockchain-এর কী কী advantage বলা হয়েছে?
+/reports
+/read-report <filename>
 ```
 
-The agent retrieves relevant excerpts first and answers from those excerpts instead of sending the entire document to the local model.
-
-## Natural-language file tools
-
-You can also ask:
+## Other commands
 
 ```text
-knowledge folder-এ কী কী file আছে?
-```
-
-or:
-
-```text
-research-paper.pdf থেকে methodology সম্পর্কে বলো
-```
-
-For the smallest local model, the direct commands are generally more reliable.
-
-## Existing commands
-
-```text
+/papers <topic>
+/research <topic>
+/reports
+/read-report <filename>
 /files
 /read <filename>
 /ask-file <filename> :: <question>
@@ -148,9 +150,16 @@ For the smallest local model, the direct commands are generally more reliable.
 exit
 ```
 
-## Important PDF limitation
+## Research safeguards
 
-Text-based PDFs work directly. Scanned/image-only PDFs may return no extractable text because OCR is intentionally not enabled in this version.
+- Factual claims in generated research reports should be tied to collected evidence markers such as `[P1]` or `[W1]`.
+- Candidate research gaps are explicitly treated as ideas that must be validated, not automatically as proven gaps.
+- A machine-collected source appendix is added to each report.
+- If the local model times out, the evidence bundle is still saved as a Markdown report instead of being lost.
+
+## OpenAlex
+
+v1.4 uses OpenAlex for academic literature search. Basic API searches can work without an API key, which keeps the default project local/free-friendly.
 
 ## Architecture
 
@@ -159,19 +168,15 @@ User
   ↓
 Masum AI Agent
   ↓
-OpenAI Agents SDK
-  ├── SQLiteSession → data/memory.db
-  ├── Current Time Tool
-  ├── Web Search Tool → DDGS
-  └── File Intelligence
-       ├── PDF → pypdf
-       ├── DOCX → python-docx
-       ├── TXT / MD → Python
-       └── Chunk + keyword retrieval
-  ↓
-Ollama (local / free)
-  ↓
-Qwen3
+Research layer
+  ├── OpenAlex → scholarly works
+  ├── DDGS → web evidence
+  ├── Local documents → knowledge/
+  └── Ollama → synthesis
+          ↓
+   Markdown research report
+          ↓
+   research_reports/
 ```
 
 ## Roadmap
@@ -180,7 +185,7 @@ Qwen3
 - v1.1 — Persistent Conversation Memory ✅
 - v1.2 — Web Search ✅
 - v1.3 — File/PDF Intelligence ✅
-- v1.4 — Research Agent
+- v1.4 — Research Agent ✅
 - v1.5 — GitHub Agent
 - v1.6 — Gmail Agent
 - v1.7 — Database / Supabase
@@ -192,9 +197,7 @@ Qwen3
 ## Security
 
 - `.env` is ignored by Git.
-- `data/` is ignored by Git.
-- `knowledge/` document contents are ignored by Git.
-- File access is restricted to the configured knowledge directory.
+- `data/`, `knowledge/`, and `research_reports/` contents are ignored by Git.
 - The default local setup requires no OpenAI API key.
 
 ## Author
