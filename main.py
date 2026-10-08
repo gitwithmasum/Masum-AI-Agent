@@ -6,6 +6,8 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
+from ddgs import DDGS
+from ddgs.exceptions import DDGSException
 from dotenv import load_dotenv
 from agents import (
     Agent,
@@ -22,6 +24,8 @@ load_dotenv(override=True)
 AGENT_TIMEOUT_SECONDS = int(os.getenv("AGENT_TIMEOUT_SECONDS", "120"))
 MEMORY_SESSION_ID = os.getenv("MEMORY_SESSION_ID", "masum-main").strip()
 MEMORY_DB_PATH = Path(os.getenv("MEMORY_DB_PATH", "data/memory.db"))
+WEB_SEARCH_MAX_RESULTS = int(os.getenv("WEB_SEARCH_MAX_RESULTS", "5"))
+WEB_SEARCH_TIMEOUT = int(os.getenv("WEB_SEARCH_TIMEOUT", "10"))
 
 
 @function_tool
@@ -30,6 +34,55 @@ def get_current_time() -> str:
     return datetime.now().astimezone().strftime(
         "%A, %d %B %Y - %I:%M:%S %p %Z"
     )
+
+
+def search_web(query: str, max_results: int | None = None) -> str:
+    """Run a key-free web search and return compact source results."""
+    query = query.strip()
+    if not query:
+        return "Search query is empty."
+
+    limit = max_results or WEB_SEARCH_MAX_RESULTS
+    limit = max(1, min(limit, 8))
+
+    try:
+        results = DDGS(timeout=WEB_SEARCH_TIMEOUT).text(
+            query,
+            max_results=limit,
+        )
+    except DDGSException as error:
+        return f"Web search failed: {error}"
+    except Exception as error:
+        return f"Web search failed unexpectedly: {error}"
+
+    if not results:
+        return f"No web results found for: {query}"
+
+    lines = [f"Live web results for: {query}"]
+    for index, item in enumerate(results, start=1):
+        title = (item.get("title") or "Untitled").strip()
+        url = (item.get("href") or "").strip()
+        body = (item.get("body") or "").strip()
+
+        lines.append(f"\n[{index}] {title}")
+        if body:
+            lines.append(body)
+        if url:
+            lines.append(f"Source: {url}")
+
+    return "\n".join(lines)
+
+
+@function_tool
+def web_search(query: str, max_results: int = 5) -> str:
+    """
+    Search the live public web.
+
+    Use this for current information, recent events, documentation,
+    changing facts, websites, products, releases, or anything that
+    may require up-to-date information. Return sources with the result.
+    """
+    return search_web(query, max_results=max_results)
 
 
 INSTRUCTIONS = """
@@ -44,12 +97,16 @@ Core responsibilities:
 - Respond mainly in Bangla when the user speaks Bangla.
 - Keep useful English technical terms where they improve clarity.
 - Use conversation memory naturally when it is relevant.
+- For current, latest, recent, changing, or web-specific information, use web_search.
+- When using web_search, mention useful source URLs in the final answer.
+- Do not invent search results or sources.
 """
 
 LOCAL_FAST_INSTRUCTIONS = INSTRUCTIONS + """
 - You are running on a small local model. Prefer short, direct answers.
 - For simple tool requests, call the required tool immediately without lengthy reasoning.
 - If the user asks for the current date or time, call get_current_time immediately.
+- If the user asks to search the web, find current information, or asks for latest/recent information, call web_search immediately.
 /no_think
 """
 
@@ -80,6 +137,7 @@ def check_ollama(model_name: str) -> None:
 
 def build_agent() -> tuple[Agent, str, str]:
     provider = os.getenv("AI_PROVIDER", "ollama").strip().lower()
+    tools = [get_current_time, web_search]
 
     if provider == "ollama":
         model_name = os.getenv("OLLAMA_MODEL", "qwen3:1.7b").strip()
@@ -101,7 +159,7 @@ def build_agent() -> tuple[Agent, str, str]:
             name="Masum AI Agent",
             instructions=LOCAL_FAST_INSTRUCTIONS,
             model=local_model,
-            tools=[get_current_time],
+            tools=tools,
         )
         return agent, provider, model_name
 
@@ -116,7 +174,7 @@ def build_agent() -> tuple[Agent, str, str]:
         kwargs = {
             "name": "Masum AI Agent",
             "instructions": INSTRUCTIONS,
-            "tools": [get_current_time],
+            "tools": tools,
         }
         if model_name:
             kwargs["model"] = model_name
@@ -144,6 +202,22 @@ async def print_memory_info(session: SQLiteSession) -> None:
     print(f"💬 Stored items   : {len(items)}")
 
 
+async def run_direct_search(query: str) -> None:
+    if not query:
+        print("\nUsage: /search <your query>")
+        return
+
+    print("\n🌐 Searching the web...")
+    try:
+        result = await asyncio.wait_for(
+            asyncio.to_thread(search_web, query),
+            timeout=WEB_SEARCH_TIMEOUT + 10,
+        )
+        print(f"\n{result}")
+    except asyncio.TimeoutError:
+        print("\n⏱️ Web search timed out. Try again with a shorter query.")
+
+
 async def main() -> None:
     try:
         agent, provider, model_name = build_agent()
@@ -153,15 +227,16 @@ async def main() -> None:
         return
 
     print("=" * 60)
-    print("🤖 MASUM AI AGENT v1.1 — PERSISTENT MEMORY")
+    print("🤖 MASUM AI AGENT v1.2 — MEMORY + WEB SEARCH")
     print(f"Provider : {provider}")
     print(f"Model    : {model_name}")
     if provider == "ollama":
         print("Fast mode: enabled")
     print(f"Memory   : {MEMORY_SESSION_ID}")
     print(f"Database : {MEMORY_DB_PATH}")
+    print(f"Web      : enabled ({WEB_SEARCH_MAX_RESULTS} results)")
     print(f"Timeout  : {AGENT_TIMEOUT_SECONDS}s")
-    print("Commands : /memory, /clear-memory, exit")
+    print("Commands : /search <query>, /memory, /clear-memory, exit")
     print("=" * 60)
 
     while True:
@@ -180,6 +255,11 @@ async def main() -> None:
             print("\n🧠 Conversation memory cleared.")
             continue
 
+        if user_input.lower().startswith("/search"):
+            query = user_input[len("/search"):].strip()
+            await run_direct_search(query)
+            continue
+
         if not user_input:
             continue
 
@@ -196,7 +276,7 @@ async def main() -> None:
         except asyncio.TimeoutError:
             print(
                 "\n⏱️ Response timed out. The local model is taking too long. "
-                "Try a shorter prompt or a faster/smaller model."
+                "Try a shorter prompt or use /search for direct web results."
             )
         except Exception as error:
             print(f"\n❌ Error: {error}")
