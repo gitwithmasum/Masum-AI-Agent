@@ -1,6 +1,6 @@
 # Masum AI Agent
 
-A modular, local-first AI Agent built with Python and the OpenAI Agents SDK. It can run **completely free on your own computer with Ollama**, while keeping optional OpenAI API support for later.
+A modular, local-first AI Agent built with Python and the OpenAI Agents SDK. The default setup runs **completely free on your own computer with Ollama** and does not require an OpenAI API key.
 
 ## Current version
 
@@ -8,20 +8,20 @@ A modular, local-first AI Agent built with Python and the OpenAI Agents SDK. It 
 
 ### Current capabilities
 
-- Local AI through Ollama — no OpenAI API credits required
-- Optional OpenAI provider
+- Local AI through Ollama — no API credits required
 - OpenAI Agents SDK orchestration
 - Interactive terminal chat
 - Function/tool calling
 - Current-time tool
 - Bangla-friendly behavior
-- Environment-based provider switching
+- Fast local mode for smaller models
+- Clean timeout and Ctrl+C handling
 - OpenAI tracing disabled in local mode
 
 ## Default local model
 
 ```text
-qwen3:4b
+qwen3:1.7b
 ```
 
 ## Windows setup — Free local mode
@@ -43,7 +43,7 @@ ollama --version
 ### 2. Download the local model
 
 ```powershell
-ollama pull qwen3:4b
+ollama pull qwen3:1.7b
 ```
 
 Check it:
@@ -92,16 +92,17 @@ If you do not already have a `.env` file:
 Copy-Item .env.example .env
 ```
 
-For free local mode, use:
+Use this local configuration:
 
 ```env
 AI_PROVIDER=ollama
 OLLAMA_HOST=http://localhost:11434
 OLLAMA_BASE_URL=http://localhost:11434/v1
-OLLAMA_MODEL=qwen3:4b
+OLLAMA_MODEL=qwen3:1.7b
+AGENT_TIMEOUT_SECONDS=120
 ```
 
-No OpenAI API key is required.
+**No OpenAI API key is required for the default local setup.**
 
 ### 7. Run
 
@@ -114,7 +115,9 @@ Expected startup:
 ```text
 🤖 MASUM AI AGENT v1.0 — LOCAL/FREE MODE
 Provider : ollama
-Model    : qwen3:4b
+Model    : qwen3:1.7b
+Fast mode: enabled
+Timeout  : 120s
 ```
 
 Try:
@@ -129,29 +132,18 @@ Then test the tool:
 এখন কয়টা বাজে?
 ```
 
-## Optional OpenAI mode
-
-Later, if you add API credits:
-
-```env
-AI_PROVIDER=openai
-OPENAI_API_KEY=your_real_api_key
-```
-
-Then run `python main.py`.
-
 ## Switching local models
 
 For a stronger local model:
 
 ```powershell
-ollama pull qwen3:8b
+ollama pull qwen3:4b
 ```
 
 Then change:
 
 ```env
-OLLAMA_MODEL=qwen3:8b
+OLLAMA_MODEL=qwen3:4b
 ```
 
 Larger models usually improve quality but require more RAM/GPU memory.
@@ -165,14 +157,9 @@ Masum AI Agent
   ↓
 OpenAI Agents SDK
   ↓
-Provider Router
-  ├── Ollama (default / local / free)
-  │      ↓
-  │   Qwen3
-  │
-  └── OpenAI (optional)
-         ↓
-      OpenAI API
+Ollama (local / free)
+  ↓
+Qwen3
 
 Tools
   └── Current Time
@@ -197,8 +184,8 @@ Tools
 
 - `.env` is ignored by Git.
 - Never publish real API keys.
+- The default local setup requires no OpenAI API key.
 - Local Ollama mode runs the model on your computer.
-- OpenAI mode remains optional.
 
 ## Author
 
