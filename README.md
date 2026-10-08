@@ -1,10 +1,10 @@
 # Masum AI Agent
 
-A modular, local-first AI Agent built with Python, OpenAI Agents SDK, and Ollama. It runs locally without OpenAI API credits and now includes persistent memory plus live key-free web search.
+A modular, local-first AI Agent built with Python, OpenAI Agents SDK, and Ollama. It runs locally without OpenAI API credits and includes persistent memory, live web search, and local File/PDF Intelligence.
 
 ## Current version
 
-**v1.2 — Persistent Memory + Web Search**
+**v1.3 — File/PDF Intelligence**
 
 ### Current capabilities
 
@@ -12,14 +12,18 @@ A modular, local-first AI Agent built with Python, OpenAI Agents SDK, and Ollama
 - No OpenAI API credits required
 - Persistent SQLite conversation memory
 - Live public web search
-- Direct `/search` command
-- Agent-controlled `web_search` tool
+- Local PDF reading
+- Local TXT and Markdown reading
+- Local DOCX reading
+- Keyword-based document excerpt retrieval
+- Direct file commands for reliable use with small local models
 - Current-time tool
 - Bangla-friendly behavior
-- Fast local mode
 - Clean timeout and Ctrl+C handling
 
 ## Update an existing installation
+
+From the project folder:
 
 ```powershell
 git pull origin main
@@ -27,7 +31,7 @@ git pull origin main
 pip install -r requirements.txt
 ```
 
-Your local `.env` is not overwritten by Git. Add these settings if missing:
+Your local `.env` is not overwritten by Git. Add these settings if they are missing:
 
 ```env
 AI_PROVIDER=ollama
@@ -41,9 +45,37 @@ MEMORY_DB_PATH=data/memory.db
 
 WEB_SEARCH_MAX_RESULTS=5
 WEB_SEARCH_TIMEOUT=10
+
+KNOWLEDGE_DIR=knowledge
+FILE_MAX_BYTES=15728640
+FILE_PREVIEW_CHARS=12000
+FILE_CHUNK_CHARS=3500
+FILE_MAX_CHUNKS=4
 ```
 
-Run:
+## Add documents
+
+Put documents inside:
+
+```text
+Masum-AI-Agent/
+└── knowledge/
+    ├── notes.txt
+    ├── research-paper.pdf
+    ├── assignment.docx
+    └── roadmap.md
+```
+
+Supported formats:
+
+- PDF
+- TXT
+- Markdown
+- DOCX
+
+The contents of `knowledge/` are ignored by Git, so private documents are not uploaded to GitHub.
+
+## Run
 
 ```powershell
 python main.py
@@ -52,74 +84,73 @@ python main.py
 Expected startup:
 
 ```text
-🤖 MASUM AI AGENT v1.2 — MEMORY + WEB SEARCH
+🤖 MASUM AI AGENT v1.3 — FILE/PDF INTELLIGENCE
 Provider : ollama
 Model    : qwen3:1.7b
 Memory   : masum-main
 Web      : enabled (5 results)
+Files    : knowledge (PDF/TXT/MD/DOCX)
 ```
 
-## Test web search
+## File commands
 
-### Direct search — fastest and easiest to debug
+List available documents:
 
 ```text
-/search latest Python 3.14 news
+/files
 ```
 
-This prints live result titles, snippets, and source URLs directly without waiting for the model to decide whether to call a tool.
-
-### Agent-controlled search
-
-Ask naturally:
+Preview a file:
 
 ```text
-আজকের AI news web থেকে search করে বলো
+/read research-paper.pdf
+```
+
+Ask a question about a file:
+
+```text
+/ask-file research-paper.pdf :: এই paper-এর main objective কী?
+```
+
+Another example:
+
+```text
+/ask-file assignment.docx :: এখানে blockchain-এর কী কী advantage বলা হয়েছে?
+```
+
+The agent retrieves relevant excerpts first and answers from those excerpts instead of sending the entire document to the local model.
+
+## Natural-language file tools
+
+You can also ask:
+
+```text
+knowledge folder-এ কী কী file আছে?
 ```
 
 or:
 
 ```text
-Search the web for the latest Ollama release and summarize it.
+research-paper.pdf থেকে methodology সম্পর্কে বলো
 ```
 
-The agent can call the `web_search` tool and use the returned sources.
+For the smallest local model, the direct commands are generally more reliable.
 
-## Memory test
-
-```text
-আমার favourite programming language Python.
-আমার favourite programming language কী?
-```
-
-Commands:
+## Existing commands
 
 ```text
+/files
+/read <filename>
+/ask-file <filename> :: <question>
+/search <query>
 /memory
 /clear-memory
-/search <query>
 exit
 ```
 
-## Local model
+## Important PDF limitation
 
-Default:
-
-```text
-qwen3:1.7b
-```
-
-For better tool-use quality, if your computer can handle it:
-
-```powershell
-ollama pull qwen3:4b
-```
-
-Then set:
-
-```env
-OLLAMA_MODEL=qwen3:4b
-```
+Text-based PDFs work directly. Scanned/image-only PDFs may return no extractable text because OCR is intentionally not enabled in this version.
 
 ## Architecture
 
@@ -131,7 +162,12 @@ Masum AI Agent
 OpenAI Agents SDK
   ├── SQLiteSession → data/memory.db
   ├── Current Time Tool
-  └── Web Search Tool → DDGS metasearch
+  ├── Web Search Tool → DDGS
+  └── File Intelligence
+       ├── PDF → pypdf
+       ├── DOCX → python-docx
+       ├── TXT / MD → Python
+       └── Chunk + keyword retrieval
   ↓
 Ollama (local / free)
   ↓
@@ -143,7 +179,7 @@ Qwen3
 - v1.0 — Local/Free AI Brain + Tool Calling ✅
 - v1.1 — Persistent Conversation Memory ✅
 - v1.2 — Web Search ✅
-- v1.3 — File/PDF Intelligence
+- v1.3 — File/PDF Intelligence ✅
 - v1.4 — Research Agent
 - v1.5 — GitHub Agent
 - v1.6 — Gmail Agent
@@ -157,12 +193,9 @@ Qwen3
 
 - `.env` is ignored by Git.
 - `data/` is ignored by Git.
-- Local conversation memory stays on your computer.
+- `knowledge/` document contents are ignored by Git.
+- File access is restricted to the configured knowledge directory.
 - The default local setup requires no OpenAI API key.
-
-## Notes
-
-Web search uses the `ddgs` metasearch package. Search availability can vary when upstream search providers rate-limit or block requests.
 
 ## Author
 

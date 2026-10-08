@@ -7,3 +7,7 @@ __pycache__/
 
 # Local persistent agent memory
 data/
+
+# Local/private knowledge files
+knowledge/*
+!knowledge/.gitkeep
