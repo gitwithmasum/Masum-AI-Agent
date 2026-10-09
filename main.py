@@ -11,6 +11,11 @@ from datetime import datetime
 from pathlib import Path
 
 from automation_engine import AutomationStore, automation_loop
+from multi_agent import (
+    format_agent_catalog,
+    normalize_agent_name,
+    route_agent_names,
+)
 
 from ddgs import DDGS
 from ddgs.exceptions import DDGSException
@@ -89,6 +94,21 @@ AUTOMATION_LOG_PATH = Path(
 )
 AUTOMATION_CHECK_SECONDS = int(
     os.getenv("AUTOMATION_CHECK_SECONDS", "30")
+)
+
+MULTI_AGENT_AUTO_ROUTE = os.getenv(
+    "MULTI_AGENT_AUTO_ROUTE",
+    "true",
+).strip().lower() in {"1", "true", "yes", "on"}
+MULTI_AGENT_MAX_COLLABORATORS = max(
+    1,
+    min(
+        int(os.getenv("MULTI_AGENT_MAX_COLLABORATORS", "2")),
+        3,
+    ),
+)
+MULTI_AGENT_TIMEOUT_SECONDS = int(
+    os.getenv("MULTI_AGENT_TIMEOUT_SECONDS", "180")
 )
 
 SUPPORTED_FILE_EXTENSIONS = {".pdf", ".txt", ".md", ".docx"}
@@ -1861,9 +1881,10 @@ def check_ollama(model_name: str) -> None:
         )
 
 
-def build_agent() -> tuple[Agent, str, str]:
+def build_agent() -> tuple[Agent, dict[str, Agent], str, str]:
     provider = os.getenv("AI_PROVIDER", "ollama").strip().lower()
-    tools = [
+
+    general_tools = [
         get_current_time,
         web_search,
         academic_search,
@@ -1884,6 +1905,43 @@ def build_agent() -> tuple[Agent, str, str]:
         supabase_filter_rows,
     ]
 
+    research_tools = [
+        get_current_time,
+        web_search,
+        academic_search,
+        list_local_files,
+        read_local_file,
+        file_search,
+    ]
+
+    developer_tools = [
+        get_current_time,
+        web_search,
+        list_local_files,
+        read_local_file,
+        file_search,
+        github_repo_info,
+        github_list_files,
+        github_read_file,
+        github_recent_commits,
+        github_open_issues,
+        github_owner_repos,
+    ]
+
+    gmail_tools = [
+        get_current_time,
+        gmail_inbox,
+        gmail_search,
+        gmail_read_message,
+    ]
+
+    data_tools = [
+        get_current_time,
+        supabase_tables,
+        supabase_read_table,
+        supabase_filter_rows,
+    ]
+
     if provider == "ollama":
         model_name = os.getenv("OLLAMA_MODEL", "qwen3:1.7b").strip()
         base_url = os.getenv(
@@ -1895,20 +1953,30 @@ def build_agent() -> tuple[Agent, str, str]:
         set_tracing_disabled(True)
 
         local_client = AsyncOpenAI(base_url=base_url, api_key="ollama")
-        local_model = OpenAIChatCompletionsModel(
+        shared_model = OpenAIChatCompletionsModel(
             model=model_name,
             openai_client=local_client,
         )
 
-        agent = Agent(
-            name="Masum AI Agent",
-            instructions=LOCAL_FAST_INSTRUCTIONS,
-            model=local_model,
-            tools=tools,
-        )
-        return agent, provider, model_name
+        def make_agent(
+            name: str,
+            instructions: str,
+            tools: list,
+        ) -> Agent:
+            return Agent(
+                name=name,
+                instructions=instructions + "\n/no_think",
+                model=shared_model,
+                tools=tools,
+            )
 
-    if provider == "openai":
+        general = make_agent(
+            "Masum AI Coordinator",
+            LOCAL_FAST_INSTRUCTIONS,
+            general_tools,
+        )
+
+    elif provider == "openai":
         api_key = os.getenv("OPENAI_API_KEY", "").strip()
         if not api_key or "your_openai_api_key_here" in api_key:
             raise RuntimeError(
@@ -1916,20 +1984,91 @@ def build_agent() -> tuple[Agent, str, str]:
             )
 
         model_name = os.getenv("OPENAI_MODEL", "").strip()
-        kwargs = {
-            "name": "Masum AI Agent",
-            "instructions": INSTRUCTIONS,
-            "tools": tools,
-        }
-        if model_name:
-            kwargs["model"] = model_name
 
-        agent = Agent(**kwargs)
-        return agent, provider, model_name or "OpenAI SDK default"
+        def make_agent(
+            name: str,
+            instructions: str,
+            tools: list,
+        ) -> Agent:
+            kwargs = {
+                "name": name,
+                "instructions": instructions,
+                "tools": tools,
+            }
+            if model_name:
+                kwargs["model"] = model_name
+            return Agent(**kwargs)
 
-    raise RuntimeError(
-        f"Unsupported AI_PROVIDER='{provider}'. Use 'ollama' or 'openai'."
+        general = make_agent(
+            "Masum AI Coordinator",
+            INSTRUCTIONS,
+            general_tools,
+        )
+
+    else:
+        raise RuntimeError(
+            f"Unsupported AI_PROVIDER='{provider}'. Use 'ollama' or 'openai'."
+        )
+
+    research = make_agent(
+        "Masum Research Agent",
+        """You are the Research specialist inside Masum AI Agent.
+Focus on academic research, web evidence, papers, literature reviews,
+research questions, methods, datasets, and evidence-backed synthesis.
+Use academic_search for scholarly literature and web_search for fresh public
+information. Use local-file tools when the user refers to local documents.
+Do not invent papers, citations, sources, or research findings.
+Respond mainly in Bangla when the user speaks Bangla.""",
+        research_tools,
     )
+
+    developer = make_agent(
+        "Masum Developer Agent",
+        """You are the Developer/GitHub specialist inside Masum AI Agent.
+Focus on programming, debugging, architecture, GitHub repository inspection,
+commits, issues, source files, deployment reasoning, and developer workflows.
+Use GitHub tools for repository facts and web_search when current documentation
+is needed. GitHub access in this agent is read-only; never claim that you
+changed a repository through these tools.
+Respond mainly in Bangla when the user speaks Bangla.""",
+        developer_tools,
+    )
+
+    gmail_agent = make_agent(
+        "Masum Gmail Agent",
+        """You are the Gmail specialist inside Masum AI Agent.
+Use Gmail read-only tools to list, search, read, and summarize messages.
+Never claim to send, delete, archive, label, forward, or modify email.
+Do not invent message content. Keep summaries concise and privacy-conscious.
+Respond mainly in Bangla when the user speaks Bangla.""",
+        gmail_tools,
+    )
+
+    data_agent = make_agent(
+        "Masum Data Agent",
+        """You are the Database/Data specialist inside Masum AI Agent.
+Use the Supabase read-only tools only when Supabase is configured.
+You may inspect visible tables, read rows, filter rows, and analyze returned
+data. Never claim to insert, update, delete, execute SQL, or alter schema.
+Respect RLS and the local table allowlist.
+Respond mainly in Bangla when the user speaks Bangla.""",
+        data_tools,
+    )
+
+    team = {
+        "general": general,
+        "research": research,
+        "developer": developer,
+        "gmail": gmail_agent,
+        "data": data_agent,
+    }
+
+    display_model = (
+        model_name
+        if model_name
+        else "OpenAI SDK default"
+    )
+    return general, team, provider, display_model
 
 
 def build_memory_session() -> SQLiteSession:
@@ -2017,6 +2156,135 @@ async def answer_file_question(
     except asyncio.TimeoutError:
         print("\n⏱️ File question timed out. Try a shorter question or smaller file.")
 
+
+
+
+def multi_agent_status_text() -> str:
+    mode = "ON" if MULTI_AGENT_AUTO_ROUTE else "OFF"
+    return (
+        f"Multi-Agent System: enabled\n"
+        f"Auto-route natural chat: {mode}\n"
+        f"Max collaboration agents: {MULTI_AGENT_MAX_COLLABORATORS}\n\n"
+        f"{format_agent_catalog()}"
+    )
+
+
+async def run_named_agent(
+    team: dict[str, Agent],
+    agent_name: str,
+    prompt: str,
+    session: SQLiteSession | None = None,
+) -> str:
+    normalized = normalize_agent_name(agent_name)
+    specialist = team.get(normalized)
+
+    if specialist is None:
+        return (
+            f"Unknown agent: {agent_name}\n\n"
+            + format_agent_catalog()
+        )
+
+    if not prompt.strip():
+        return "Prompt is empty."
+
+    kwargs = {}
+    if session is not None:
+        kwargs["session"] = session
+
+    try:
+        result = await asyncio.wait_for(
+            Runner.run(
+                specialist,
+                prompt.strip(),
+                **kwargs,
+            ),
+            timeout=MULTI_AGENT_TIMEOUT_SECONDS,
+        )
+        return str(result.final_output)
+    except asyncio.TimeoutError:
+        return (
+            f"{normalized} agent timed out after "
+            f"{MULTI_AGENT_TIMEOUT_SECONDS}s."
+        )
+    except Exception as error:
+        return f"{normalized} agent error: {error}"
+
+
+async def run_team_route(
+    team: dict[str, Agent],
+    prompt: str,
+    session: SQLiteSession | None = None,
+) -> tuple[str, str]:
+    names = route_agent_names(prompt, max_agents=1)
+    selected = names[0] if names else "general"
+    output = await run_named_agent(
+        team,
+        selected,
+        prompt,
+        session=session,
+    )
+    return selected, output
+
+
+async def run_team_review(
+    team: dict[str, Agent],
+    prompt: str,
+) -> tuple[list[str], str]:
+    selected = route_agent_names(
+        prompt,
+        max_agents=MULTI_AGENT_MAX_COLLABORATORS,
+    )
+
+    selected = [
+        name
+        for name in selected
+        if name in team and name != "general"
+    ]
+
+    if not selected:
+        selected = ["general"]
+    elif len(selected) == 1 and MULTI_AGENT_MAX_COLLABORATORS >= 2:
+        selected.append("general")
+
+    contributions = []
+
+    for name in selected[:MULTI_AGENT_MAX_COLLABORATORS]:
+        specialist_prompt = (
+            "Act as a specialist contributor. Analyze the request from "
+            f"your role's perspective. Do not assume another agent will "
+            f"correct unsupported claims.\n\nUser request:\n{prompt}"
+        )
+
+        output = await run_named_agent(
+            team,
+            name,
+            specialist_prompt,
+            session=None,
+        )
+        contributions.append(
+            f"=== {name.upper()} AGENT ===\n{output}"
+        )
+
+    if len(contributions) == 1:
+        return selected, contributions[0].split("\n", 1)[-1]
+
+    synthesis_prompt = (
+        "You are the coordinator. Synthesize the specialist responses below "
+        "into one accurate, practical answer for the user. Resolve conflicts "
+        "conservatively, do not invent facts, and keep useful source URLs or "
+        "evidence references that specialists supplied. Reply mainly in Bangla "
+        "when appropriate.\n\n"
+        + "\n\n".join(contributions)
+        + f"\n\nOriginal user request:\n{prompt}"
+    )
+
+    final_output = await run_named_agent(
+        team,
+        "general",
+        synthesis_prompt,
+        session=None,
+    )
+    return selected, final_output
 
 
 def automation_help_text() -> str:
@@ -2172,7 +2440,7 @@ async def main() -> None:
     ensure_research_report_dir()
 
     try:
-        agent, provider, model_name = build_agent()
+        agent, agent_team, provider, model_name = build_agent()
         session = build_memory_session()
         automation_store = AutomationStore(
             AUTOMATION_TASKS_PATH,
@@ -2183,7 +2451,7 @@ async def main() -> None:
         return
 
     print("=" * 64)
-    print("🤖 MASUM AI AGENT v1.8 — AUTOMATION")
+    print("🤖 MASUM AI AGENT v2.0 — MULTI-AGENT SYSTEM")
     print(f"Provider : {provider}")
     print(f"Model    : {model_name}")
     if provider == "ollama":
@@ -2198,9 +2466,14 @@ async def main() -> None:
     print(f"Gmail    : read-only | {'authorized' if gmail_ready else 'setup required'}")
     print(f"Database : Supabase read-only | {'configured' if supabase_configured() else 'setup required'}")
     print(f"Automation: local scheduler | check every {AUTOMATION_CHECK_SECONDS}s")
+    print(
+        "Agents   : general | research | developer | gmail | data "
+        f"| auto-route {'ON' if MULTI_AGENT_AUTO_ROUTE else 'OFF'}"
+    )
     print(f"Timeout  : chat {AGENT_TIMEOUT_SECONDS}s | research {RESEARCH_TIMEOUT_SECONDS}s")
     print(
-        "Commands : /auto-help, /auto-list, /auto-add-daily, /auto-add-every, "
+        "Commands : /agents, /team <prompt>, /team-review <prompt>, "
+        "/agent <name> :: <prompt>, /auto-help, /auto-list, /auto-add-daily, /auto-add-every, "
         "/auto-add-once, /auto-run, /auto-enable, /auto-disable, /auto-remove, /auto-log, "
         "/db-status, /db-tables, /db-read <table> [limit], "
         "/db-filter <table> :: <column>=<value>, /db-analyze <table> [limit], "
@@ -2294,6 +2567,70 @@ async def main() -> None:
 
 
 
+
+
+        if user_input.lower() == "/agents":
+            print(f"\n{multi_agent_status_text()}")
+            continue
+
+        if user_input.lower().startswith("/agent "):
+            payload = user_input[len("/agent "):].strip()
+            if "::" not in payload:
+                print(
+                    "\nUsage: /agent <name> :: <prompt>\n"
+                    "Example: /agent research :: Find papers on RAG"
+                )
+                continue
+
+            agent_name, prompt = (
+                part.strip()
+                for part in payload.split("::", 1)
+            )
+            normalized = normalize_agent_name(agent_name)
+
+            print(f"\n🧩 Agent: {normalized}")
+            print(
+                f"\n{await run_named_agent(
+                    agent_team,
+                    normalized,
+                    prompt,
+                    session=session,
+                )}"
+            )
+            continue
+
+        if user_input.lower().startswith("/team-review "):
+            prompt = user_input[len("/team-review "):].strip()
+            if not prompt:
+                print("\nUsage: /team-review <prompt>")
+                continue
+
+            print("\n🤝 Multi-agent review running...")
+            selected, output = await run_team_review(
+                agent_team,
+                prompt,
+            )
+            print(
+                "\nAgents used: "
+                + ", ".join(selected)
+            )
+            print(f"\nAgent: {output}")
+            continue
+
+        if user_input.lower().startswith("/team "):
+            prompt = user_input[len("/team "):].strip()
+            if not prompt:
+                print("\nUsage: /team <prompt>")
+                continue
+
+            selected, output = await run_team_route(
+                agent_team,
+                prompt,
+                session=session,
+            )
+            print(f"\n🧭 Routed to: {selected}")
+            print(f"\nAgent: {output}")
+            continue
 
         if user_input.lower() == "/auto-help":
             print(f"\n{automation_help_text()}")
@@ -2673,19 +3010,29 @@ async def main() -> None:
             continue
 
         try:
-            result = await asyncio.wait_for(
-                Runner.run(
-                    agent,
+            if MULTI_AGENT_AUTO_ROUTE:
+                selected, output = await run_team_route(
+                    agent_team,
                     user_input,
                     session=session,
-                ),
-                timeout=AGENT_TIMEOUT_SECONDS,
-            )
-            print(f"\nAgent: {result.final_output}")
+                )
+                print(f"\n🧭 {selected} agent")
+                print(f"\nAgent: {output}")
+            else:
+                result = await asyncio.wait_for(
+                    Runner.run(
+                        agent,
+                        user_input,
+                        session=session,
+                    ),
+                    timeout=AGENT_TIMEOUT_SECONDS,
+                )
+                print(f"\nAgent: {result.final_output}")
         except asyncio.TimeoutError:
             print(
-                "\n⏱️ Response timed out. Try a direct command such as "
-                "/auto-list, /db-status, /db-read, /gmail-inbox, /gmail-search, /repo, /repo-analyze, /papers, /research, /search, or /ask-file."
+                "\n⏱️ Response timed out. Try /team, /agent, or a direct "
+                "command such as /auto-list, /gmail-inbox, /repo, /papers, "
+                "/research, /search, or /ask-file."
             )
         except Exception as error:
             print(f"\n❌ Error: {error}")
