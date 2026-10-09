@@ -15,3 +15,8 @@ knowledge/*
 # Local research reports
 research_reports/*
 !research_reports/.gitkeep
+
+# Gmail OAuth secrets/tokens
+secrets/*
+!secrets/.gitkeep
+

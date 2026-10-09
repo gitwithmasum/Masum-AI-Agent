@@ -1,25 +1,21 @@
 # Masum AI Agent
 
-A local-first modular AI Agent built with Python, OpenAI Agents SDK, Ollama, web search, OpenAlex research tools, local document intelligence, and GitHub repository intelligence.
+A local-first modular AI Agent built with Python, OpenAI Agents SDK, Ollama, web search, OpenAlex, local document intelligence, GitHub intelligence, and Gmail read-only access.
 
 ## Current version
 
-**v1.5 — GitHub Agent (Read-Only)**
+**v1.6 — Gmail Agent (Read-Only)**
 
-### What v1.5 adds
+### What v1.6 adds
 
-- Inspect public GitHub repositories
-- Repository metadata and health snapshot
-- Browse repository files/folders
-- Read text/code files directly from GitHub
-- View recent commits
-- View open issues
-- List a user's recently updated public repositories
-- Generate a local-model repository assessment
-- Default repository: `gitwithmasum/Masum-AI-Agent`
-- No GitHub token required for basic public-repository reads
-
-The GitHub Agent is intentionally **read-only** in v1.5. It does not push commits, create issues, change files, or modify repositories.
+- Gmail OAuth login using Google's official desktop-app flow
+- Read-only Gmail scope: `gmail.readonly`
+- Recent inbox listing
+- Gmail search using normal Gmail search syntax
+- Read individual messages by message ID
+- Local AI summary of recent/search-matched messages
+- OAuth token stored only in the local `secrets/` folder
+- No send, delete, archive, label, or other mailbox modification capability
 
 ## Update
 
@@ -29,123 +25,134 @@ git pull origin main
 pip install -r requirements.txt
 ```
 
-No new Python dependency is required for v1.5.
+## Google Cloud setup — first time only
+
+1. Open Google Cloud Console and create/select a project.
+2. Enable **Gmail API**.
+3. Configure the OAuth consent screen.
+4. Create an OAuth Client ID with application type **Desktop app**.
+5. Download the OAuth JSON file.
+6. Rename/save it as:
+
+```text
+Masum-AI-Agent/
+└── secrets/
+    └── gmail_credentials.json
+```
+
+If your OAuth app is still in testing mode, add your own Google account as a test user.
+
+The `secrets/` folder contents are ignored by Git.
 
 ## .env additions
 
 ```env
-GITHUB_API_BASE=https://api.github.com
-GITHUB_OWNER=gitwithmasum
-GITHUB_DEFAULT_REPO=Masum-AI-Agent
-GITHUB_TIMEOUT=20
-GITHUB_MAX_ITEMS=8
-GITHUB_FILE_PREVIEW_CHARS=16000
+GMAIL_CREDENTIALS_PATH=secrets/gmail_credentials.json
+GMAIL_TOKEN_PATH=secrets/gmail_token.json
+GMAIL_MAX_RESULTS=8
+GMAIL_BODY_PREVIEW_CHARS=12000
 ```
 
-For public repositories, no token is required. An optional local `GITHUB_TOKEN` can later be used for private-repository access or higher API limits; never commit it to GitHub.
+## Authorize Gmail
 
-## Run
+Run:
 
 ```powershell
 python main.py
 ```
 
-Expected header includes:
+Then:
 
 ```text
-🤖 MASUM AI AGENT v1.5 — GITHUB AGENT
-GitHub   : read-only | default gitwithmasum/Masum-AI-Agent
+/gmail-status
+/gmail-auth
 ```
 
-## GitHub commands
+The first authorization opens a browser. Sign in to the Gmail account you want the local agent to read and approve the read-only permission.
 
-Default repository summary:
+After successful OAuth, the local token is stored at:
 
 ```text
-/repo
+secrets/gmail_token.json
 ```
 
-Another repository:
+Do not share or commit this file.
+
+## Gmail commands
+
+Recent inbox:
 
 ```text
-/repo gitwithmasum/Aurora-Essence
+/gmail-inbox
 ```
 
-List your public repositories:
+Choose how many:
 
 ```text
-/repos
+/gmail-inbox 10
 ```
 
-List another user's public repositories:
+Search using Gmail syntax:
 
 ```text
-/repos openai
+/gmail-search is:unread
 ```
 
-Browse root files:
-
 ```text
-/repo-files gitwithmasum/Masum-AI-Agent
+/gmail-search from:github.com newer_than:30d
 ```
 
-Browse a folder:
-
 ```text
-/repo-files gitwithmasum/Masum-AI-Agent :: knowledge
+/gmail-search subject:interview
 ```
 
-Read a GitHub file:
+The results include Gmail message IDs. Read one message:
 
 ```text
-/repo-read gitwithmasum/Masum-AI-Agent :: README.md
+/gmail-read <message-id>
 ```
 
-Recent commits:
+Summarize recent inbox messages:
 
 ```text
-/repo-commits
+/gmail-summary
 ```
 
-Open issues:
+Or summarize a Gmail search:
 
 ```text
-/repo-issues
+/gmail-summary is:unread newer_than:7d
 ```
 
-Repository assessment:
+## Privacy
+
+- Gmail scope is read-only.
+- The agent cannot send or modify email in v1.6.
+- OAuth credentials and tokens stay in the local `secrets/` folder.
+- Direct Gmail commands do not upload your Gmail OAuth token anywhere.
+- Natural-language agent runs can be recorded in the project's local SQLite conversation memory, so use `/clear-memory` if you do not want those local chat/tool records retained.
+
+## Existing capabilities
+
+- Local Ollama AI
+- Persistent memory
+- Web search
+- PDF/DOCX/TXT/Markdown intelligence
+- Academic research agent
+- GitHub read-only agent
+- Gmail read-only agent
+
+## Main commands
 
 ```text
-/repo-analyze
-```
+/gmail-status
+/gmail-auth
+/gmail-inbox [count]
+/gmail-search <gmail query>
+/gmail-read <message-id>
+/gmail-summary [gmail query]
 
-or:
-
-```text
-/repo-analyze gitwithmasum/Aurora-Essence
-```
-
-## Natural-language use
-
-The agent also has GitHub read-only tools, so you can try:
-
-```text
-আমার Masum-AI-Agent repo-এর recent commits দেখাও
-```
-
-or:
-
-```text
-Aurora-Essence repo-এর root files কী কী?
-```
-
-Direct commands are more reliable with small local models.
-
-## Existing major commands
-
-```text
 /repo [owner/repo]
-/repos [owner]
 /repo-files [owner/repo] :: [path]
 /repo-read <owner/repo> :: <path>
 /repo-commits [owner/repo]
@@ -154,8 +161,6 @@ Direct commands are more reliable with small local models.
 
 /papers <topic>
 /research <topic>
-/reports
-/read-report <filename>
 
 /files
 /read <filename>
@@ -167,10 +172,6 @@ Direct commands are more reliable with small local models.
 exit
 ```
 
-## GitHub API note
-
-Unauthenticated GitHub API requests have a lower rate limit. If you hit a rate-limit message, wait for reset or later configure a GitHub token locally. The token must stay in `.env`, which is ignored by Git.
-
 ## Roadmap
 
 - v1.0 — Local/Free AI Brain + Tool Calling ✅
@@ -179,7 +180,7 @@ Unauthenticated GitHub API requests have a lower rate limit. If you hit a rate-l
 - v1.3 — File/PDF Intelligence ✅
 - v1.4 — Research Agent ✅
 - v1.5 — GitHub Agent ✅
-- v1.6 — Gmail Agent
+- v1.6 — Gmail Agent ✅
 - v1.7 — Database / Supabase
 - v1.8 — Automation
 - v2.0 — Multi-Agent System
@@ -188,10 +189,9 @@ Unauthenticated GitHub API requests have a lower rate limit. If you hit a rate-l
 
 ## Security
 
-- `.env` is ignored by Git.
-- GitHub v1.5 actions are read-only.
-- No GitHub token is required for normal public-repository use.
-- Never publish GitHub or OpenAI secrets.
+- `.env`, `data/`, `knowledge/`, `research_reports/`, and `secrets/` contents are protected from Git where applicable.
+- Gmail access is read-only.
+- Never commit OAuth credentials, OAuth tokens, GitHub tokens, or API keys.
 
 ## Author
 

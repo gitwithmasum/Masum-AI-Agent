@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import html as html_lib
 import json
 import os
 import re
@@ -14,6 +15,11 @@ from ddgs.exceptions import DDGSException
 from docx import Document
 from dotenv import load_dotenv
 from pypdf import PdfReader
+from google.auth.transport.requests import Request as GoogleAuthRequest
+from google.oauth2.credentials import Credentials
+from google_auth_oauthlib.flow import InstalledAppFlow
+from googleapiclient.discovery import build as google_api_build
+from googleapiclient.errors import HttpError
 from agents import (
     Agent,
     AsyncOpenAI,
@@ -50,6 +56,16 @@ GITHUB_DEFAULT_REPO = os.getenv("GITHUB_DEFAULT_REPO", "Masum-AI-Agent").strip()
 GITHUB_TIMEOUT = int(os.getenv("GITHUB_TIMEOUT", "20"))
 GITHUB_MAX_ITEMS = int(os.getenv("GITHUB_MAX_ITEMS", "8"))
 GITHUB_FILE_PREVIEW_CHARS = int(os.getenv("GITHUB_FILE_PREVIEW_CHARS", "16000"))
+
+GMAIL_SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
+GMAIL_CREDENTIALS_PATH = Path(
+    os.getenv("GMAIL_CREDENTIALS_PATH", "secrets/gmail_credentials.json")
+)
+GMAIL_TOKEN_PATH = Path(
+    os.getenv("GMAIL_TOKEN_PATH", "secrets/gmail_token.json")
+)
+GMAIL_MAX_RESULTS = int(os.getenv("GMAIL_MAX_RESULTS", "8"))
+GMAIL_BODY_PREVIEW_CHARS = int(os.getenv("GMAIL_BODY_PREVIEW_CHARS", "12000"))
 
 SUPPORTED_FILE_EXTENSIONS = {".pdf", ".txt", ".md", ".docx"}
 
@@ -1003,6 +1019,392 @@ REPOSITORY DATA:
         return f"GitHub analysis failed: {error}\n\n{bundle}"
 
 
+
+def save_gmail_token(creds: Credentials) -> None:
+    GMAIL_TOKEN_PATH.parent.mkdir(parents=True, exist_ok=True)
+    GMAIL_TOKEN_PATH.write_text(creds.to_json(), encoding="utf-8")
+
+
+def load_gmail_credentials(interactive: bool = False) -> Credentials:
+    creds = None
+
+    if GMAIL_TOKEN_PATH.exists():
+        try:
+            creds = Credentials.from_authorized_user_file(
+                str(GMAIL_TOKEN_PATH),
+                GMAIL_SCOPES,
+            )
+        except Exception as error:
+            raise RuntimeError(
+                f"Could not read Gmail token: {error}. "
+                "Delete the local token and run /gmail-auth again."
+            ) from error
+
+    if creds and creds.expired and creds.refresh_token:
+        try:
+            creds.refresh(GoogleAuthRequest())
+            save_gmail_token(creds)
+        except Exception as error:
+            if not interactive:
+                raise RuntimeError(
+                    "Gmail authorization expired or was revoked. "
+                    "Run /gmail-auth again."
+                ) from error
+            creds = None
+
+    if creds and creds.valid:
+        return creds
+
+    if not interactive:
+        raise RuntimeError(
+            "Gmail is not authorized yet. Run /gmail-auth first."
+        )
+
+    if not GMAIL_CREDENTIALS_PATH.exists():
+        raise RuntimeError(
+            f"Gmail OAuth client file not found: {GMAIL_CREDENTIALS_PATH}. "
+            "Download a Desktop app OAuth client JSON from Google Cloud "
+            "and save it at that path."
+        )
+
+    GMAIL_TOKEN_PATH.parent.mkdir(parents=True, exist_ok=True)
+
+    try:
+        flow = InstalledAppFlow.from_client_secrets_file(
+            str(GMAIL_CREDENTIALS_PATH),
+            GMAIL_SCOPES,
+        )
+        creds = flow.run_local_server(port=0)
+        save_gmail_token(creds)
+        return creds
+    except Exception as error:
+        raise RuntimeError(f"Gmail OAuth failed: {error}") from error
+
+
+def gmail_service(interactive: bool = False):
+    creds = load_gmail_credentials(interactive=interactive)
+    return google_api_build(
+        "gmail",
+        "v1",
+        credentials=creds,
+        cache_discovery=False,
+    )
+
+
+def gmail_status_text() -> str:
+    lines = [
+        "Gmail Agent: read-only",
+        f"Credentials file: {GMAIL_CREDENTIALS_PATH}",
+        f"Token file: {GMAIL_TOKEN_PATH}",
+        f"OAuth scope: {GMAIL_SCOPES[0]}",
+    ]
+
+    if not GMAIL_CREDENTIALS_PATH.exists():
+        lines.append("OAuth client: missing")
+    else:
+        lines.append("OAuth client: found")
+
+    try:
+        creds = load_gmail_credentials(interactive=False)
+        lines.append(f"Authorized: {'Yes' if creds.valid else 'No'}")
+    except RuntimeError as error:
+        lines.append("Authorized: No")
+        lines.append(f"Status: {error}")
+
+    return "\n".join(lines)
+
+
+def gmail_header(payload: dict, name: str) -> str:
+    for header in payload.get("headers", []):
+        if (header.get("name") or "").lower() == name.lower():
+            return header.get("value") or ""
+    return ""
+
+
+def decode_gmail_body_data(data: str) -> str:
+    if not data:
+        return ""
+
+    padding = "=" * (-len(data) % 4)
+    try:
+        raw = base64.urlsafe_b64decode(data + padding)
+        return raw.decode("utf-8", errors="replace")
+    except Exception:
+        return ""
+
+
+def html_to_plain_text(value: str) -> str:
+    value = re.sub(
+        r"(?is)<(script|style).*?>.*?</\1>",
+        " ",
+        value,
+    )
+    value = re.sub(r"(?i)<br\s*/?>", "\n", value)
+    value = re.sub(r"(?i)</p\s*>", "\n\n", value)
+    value = re.sub(r"(?s)<[^>]+>", " ", value)
+    value = html_lib.unescape(value)
+    value = re.sub(r"[ \t]+", " ", value)
+    value = re.sub(r"\n{3,}", "\n\n", value)
+    return value.strip()
+
+
+def extract_gmail_body(payload: dict) -> str:
+    plain_parts = []
+    html_parts = []
+
+    def walk(part: dict) -> None:
+        mime_type = (part.get("mimeType") or "").lower()
+        body_data = (part.get("body") or {}).get("data") or ""
+
+        if body_data:
+            decoded = decode_gmail_body_data(body_data)
+            if mime_type == "text/plain":
+                plain_parts.append(decoded)
+            elif mime_type == "text/html":
+                html_parts.append(decoded)
+
+        for child in part.get("parts") or []:
+            walk(child)
+
+    walk(payload)
+
+    if plain_parts:
+        return "\n\n".join(part.strip() for part in plain_parts if part.strip()).strip()
+
+    if html_parts:
+        return html_to_plain_text(
+            "\n\n".join(part for part in html_parts if part.strip())
+        )
+
+    body_data = (payload.get("body") or {}).get("data") or ""
+    return decode_gmail_body_data(body_data).strip()
+
+
+def gmail_message_metadata(message: dict) -> dict:
+    payload = message.get("payload") or {}
+    return {
+        "id": message.get("id") or "",
+        "thread_id": message.get("threadId") or "",
+        "from": gmail_header(payload, "From"),
+        "to": gmail_header(payload, "To"),
+        "subject": gmail_header(payload, "Subject") or "(No subject)",
+        "date": gmail_header(payload, "Date"),
+        "snippet": message.get("snippet") or "",
+        "labels": message.get("labelIds") or [],
+    }
+
+
+def gmail_list_messages_data(
+    query: str = "in:inbox",
+    max_results: int | None = None,
+) -> list[dict]:
+    limit = max_results or GMAIL_MAX_RESULTS
+    limit = max(1, min(limit, 25))
+
+    try:
+        service = gmail_service(interactive=False)
+        response = (
+            service.users()
+            .messages()
+            .list(
+                userId="me",
+                q=query.strip() or None,
+                maxResults=limit,
+            )
+            .execute()
+        )
+
+        messages = response.get("messages", [])
+        results = []
+
+        for item in messages:
+            full = (
+                service.users()
+                .messages()
+                .get(
+                    userId="me",
+                    id=item["id"],
+                    format="metadata",
+                    metadataHeaders=["From", "To", "Subject", "Date"],
+                )
+                .execute()
+            )
+            results.append(gmail_message_metadata(full))
+
+        return results
+    except HttpError as error:
+        raise RuntimeError(f"Gmail API error: {error}") from error
+
+
+def render_gmail_messages(
+    messages: list[dict],
+    title: str,
+) -> str:
+    if not messages:
+        return f"{title}\nNo matching messages found."
+
+    lines = [title]
+    for index, item in enumerate(messages, start=1):
+        unread = "UNREAD" if "UNREAD" in item["labels"] else "read"
+        lines.append(
+            f"\n[G{index}] ID: {item['id']}\n"
+            f"From: {item['from'] or 'Unknown'}\n"
+            f"Subject: {item['subject']}\n"
+            f"Date: {item['date'] or 'N/A'}\n"
+            f"State: {unread}\n"
+            f"Snippet: {item['snippet']}"
+        )
+
+    return "\n".join(lines)
+
+
+def gmail_inbox_text(max_results: int | None = None) -> str:
+    try:
+        messages = gmail_list_messages_data(
+            "in:inbox",
+            max_results=max_results,
+        )
+        return render_gmail_messages(messages, "Recent Gmail inbox messages:")
+    except RuntimeError as error:
+        return str(error)
+
+
+@function_tool
+def gmail_inbox(max_results: int = 8) -> str:
+    """List recent Gmail inbox messages using read-only access."""
+    return gmail_inbox_text(max_results)
+
+
+def gmail_search_text(
+    query: str,
+    max_results: int | None = None,
+) -> str:
+    query = query.strip()
+    if not query:
+        return "Gmail search query is empty."
+
+    try:
+        messages = gmail_list_messages_data(
+            query,
+            max_results=max_results,
+        )
+        return render_gmail_messages(
+            messages,
+            f"Gmail search results for: {query}",
+        )
+    except RuntimeError as error:
+        return str(error)
+
+
+@function_tool
+def gmail_search(query: str, max_results: int = 8) -> str:
+    """
+    Search Gmail using the same query syntax as the Gmail search box.
+
+    Examples: is:unread, from:example@example.com, newer_than:7d.
+    This tool is read-only.
+    """
+    return gmail_search_text(query, max_results)
+
+
+def gmail_read_message_text(message_id: str) -> str:
+    message_id = message_id.strip()
+    if not message_id:
+        return "Gmail message ID is empty."
+
+    try:
+        service = gmail_service(interactive=False)
+        message = (
+            service.users()
+            .messages()
+            .get(
+                userId="me",
+                id=message_id,
+                format="full",
+            )
+            .execute()
+        )
+    except HttpError as error:
+        return f"Gmail API error: {error}"
+    except RuntimeError as error:
+        return str(error)
+
+    meta = gmail_message_metadata(message)
+    body = extract_gmail_body(message.get("payload") or {})
+
+    if not body:
+        body = meta["snippet"] or "[No readable text body found]"
+
+    if len(body) > GMAIL_BODY_PREVIEW_CHARS:
+        body = body[:GMAIL_BODY_PREVIEW_CHARS].rstrip() + (
+            f"\n\n[Body truncated at {GMAIL_BODY_PREVIEW_CHARS} characters.]"
+        )
+
+    return (
+        f"Gmail message ID: {meta['id']}\n"
+        f"Thread ID: {meta['thread_id']}\n"
+        f"From: {meta['from'] or 'Unknown'}\n"
+        f"To: {meta['to'] or 'Unknown'}\n"
+        f"Subject: {meta['subject']}\n"
+        f"Date: {meta['date'] or 'N/A'}\n\n"
+        f"{body}"
+    )
+
+
+@function_tool
+def gmail_read_message(message_id: str) -> str:
+    """Read one Gmail message by message ID. Read-only."""
+    return gmail_read_message_text(message_id)
+
+
+async def gmail_summary_text(
+    agent: Agent,
+    query: str = "in:inbox newer_than:7d",
+    max_results: int | None = None,
+) -> str:
+    try:
+        messages = await asyncio.to_thread(
+            gmail_list_messages_data,
+            query,
+            max_results or GMAIL_MAX_RESULTS,
+        )
+    except RuntimeError as error:
+        return str(error)
+
+    if not messages:
+        return f"No Gmail messages found for: {query}"
+
+    evidence = render_gmail_messages(
+        messages,
+        f"Gmail messages for summary: {query}",
+    )
+
+    prompt = f"""
+Summarize the Gmail message metadata/snippets below.
+
+Rules:
+- Do not invent message content.
+- Separate urgent/action-needed items from informational messages.
+- Mention sender, subject, and useful dates when available.
+- If the snippets are insufficient, say so.
+- Reply mainly in Bangla.
+
+EMAIL DATA:
+{evidence}
+""".strip()
+
+    try:
+        result = await asyncio.wait_for(
+            Runner.run(agent, prompt),
+            timeout=AGENT_TIMEOUT_SECONDS,
+        )
+        return str(result.final_output)
+    except asyncio.TimeoutError:
+        return "Gmail summary timed out.\n\n" + evidence
+    except Exception as error:
+        return f"Gmail summary failed: {error}\n\n{evidence}"
+
+
 INSTRUCTIONS = """
 You are Masum AI Agent, a modular personal AI assistant.
 
@@ -1023,7 +1425,9 @@ Core responsibilities:
 - For questions about local documents, use list_local_files, read_local_file, or file_search.
 - Only claim facts about a local file when supported by text returned from a file tool.
 - For GitHub repository questions, use the GitHub read-only tools.
-- Never claim to have changed a GitHub repository; v1.5 GitHub tools are read-only.
+- Never claim to have changed a GitHub repository; GitHub tools are read-only.
+- Gmail access is read-only. Use Gmail tools only to list, search, or read messages.
+- Never claim to send, delete, archive, label, or modify email.
 """
 
 LOCAL_FAST_INSTRUCTIONS = INSTRUCTIONS + """
@@ -1035,6 +1439,7 @@ LOCAL_FAST_INSTRUCTIONS = INSTRUCTIONS + """
 - If the user asks what files are available, call list_local_files immediately.
 - If the user asks about a named local document, prefer file_search with the user's question.
 - If the user asks about a GitHub repository, use the relevant GitHub tool immediately.
+- If the user asks about Gmail, use the relevant Gmail read-only tool immediately.
 /no_think
 """
 
@@ -1078,6 +1483,9 @@ def build_agent() -> tuple[Agent, str, str]:
         github_recent_commits,
         github_open_issues,
         github_owner_repos,
+        gmail_inbox,
+        gmail_search,
+        gmail_read_message,
     ]
 
     if provider == "ollama":
@@ -1226,7 +1634,7 @@ async def main() -> None:
         return
 
     print("=" * 64)
-    print("🤖 MASUM AI AGENT v1.5 — GITHUB AGENT")
+    print("🤖 MASUM AI AGENT v1.6 — GMAIL AGENT")
     print(f"Provider : {provider}")
     print(f"Model    : {model_name}")
     if provider == "ollama":
@@ -1237,9 +1645,13 @@ async def main() -> None:
     print(f"Files    : {KNOWLEDGE_DIR} (PDF/TXT/MD/DOCX)")
     print(f"Reports  : {RESEARCH_REPORT_DIR}")
     print(f"GitHub   : read-only | default {GITHUB_OWNER}/{GITHUB_DEFAULT_REPO}")
+    gmail_ready = GMAIL_TOKEN_PATH.exists()
+    print(f"Gmail    : read-only | {'authorized' if gmail_ready else 'setup required'}")
     print(f"Timeout  : chat {AGENT_TIMEOUT_SECONDS}s | research {RESEARCH_TIMEOUT_SECONDS}s")
     print(
-        "Commands : /repo [owner/repo], /repos [owner], /repo-files [repo] :: [path], "
+        "Commands : /gmail-status, /gmail-auth, /gmail-inbox [count], "
+        "/gmail-search <query>, /gmail-read <message-id>, /gmail-summary [query], "
+        "/repo [owner/repo], /repos [owner], /repo-files [repo] :: [path], "
         "/repo-read <repo> :: <path>, /repo-commits [repo], /repo-issues [repo], "
         "/repo-analyze [repo], /papers <topic>, /research <topic>, /reports, "
         "/read-report <file>, /files, /read <file>, "
@@ -1314,6 +1726,58 @@ async def main() -> None:
                 print(f"\n💾 Report saved: {report_path}")
             continue
 
+
+
+        if user_input.lower() == "/gmail-status":
+            print(f"\n{gmail_status_text()}")
+            continue
+
+        if user_input.lower() == "/gmail-auth":
+            print("\n📧 Starting Gmail read-only OAuth...")
+            try:
+                await asyncio.to_thread(load_gmail_credentials, True)
+                print(
+                    "\n✅ Gmail authorization complete. "
+                    f"Token saved locally at: {GMAIL_TOKEN_PATH}"
+                )
+            except RuntimeError as error:
+                print(f"\n❌ Gmail authorization error: {error}")
+            continue
+
+        if user_input.lower() == "/gmail-inbox":
+            print(f"\n{await asyncio.to_thread(gmail_inbox_text)}")
+            continue
+
+        if user_input.lower().startswith("/gmail-inbox "):
+            raw_count = user_input[len("/gmail-inbox "):].strip()
+            try:
+                count = int(raw_count)
+            except ValueError:
+                print("\nUsage: /gmail-inbox [count]")
+                continue
+            print(f"\n{await asyncio.to_thread(gmail_inbox_text, count)}")
+            continue
+
+        if user_input.lower().startswith("/gmail-search "):
+            query = user_input[len("/gmail-search "):].strip()
+            print(f"\n{await asyncio.to_thread(gmail_search_text, query)}")
+            continue
+
+        if user_input.lower().startswith("/gmail-read "):
+            message_id = user_input[len("/gmail-read "):].strip()
+            print(f"\n{await asyncio.to_thread(gmail_read_message_text, message_id)}")
+            continue
+
+        if user_input.lower() == "/gmail-summary":
+            print("\n📨 Summarizing recent inbox messages...")
+            print(f"\n{await gmail_summary_text(agent)}")
+            continue
+
+        if user_input.lower().startswith("/gmail-summary "):
+            query = user_input[len("/gmail-summary "):].strip()
+            print(f"\n📨 Summarizing Gmail search: {query}")
+            print(f"\n{await gmail_summary_text(agent, query)}")
+            continue
 
         if user_input.lower() == "/repo":
             print(f"\n{github_repo_summary_text()}")
@@ -1407,7 +1871,7 @@ async def main() -> None:
         except asyncio.TimeoutError:
             print(
                 "\n⏱️ Response timed out. Try a direct command such as "
-                "/repo, /repo-analyze, /papers, /research, /search, or /ask-file."
+                "/gmail-inbox, /gmail-search, /repo, /repo-analyze, /papers, /research, /search, or /ask-file."
             )
         except Exception as error:
             print(f"\n❌ Error: {error}")
