@@ -1,21 +1,48 @@
 # Masum AI Agent
 
-A local-first modular AI Agent built with Python, OpenAI Agents SDK, Ollama, web search, OpenAlex, local document intelligence, GitHub intelligence, Gmail read-only access, and Supabase read-only database access.
+A local-first modular AI Agent built with Python, OpenAI Agents SDK, Ollama, web search, academic research, local file intelligence, GitHub, Gmail, optional Supabase access, and persistent automation.
 
 ## Current version
 
-**v1.7 — Supabase / Database Agent (Read-Only)**
+**v1.8 — Automation**
 
-### What v1.7 adds
+### What Automation means
 
-- Connect to a Supabase project using the project URL and anon key
-- Detect accessible REST tables
-- Read rows from tables
-- Filter rows using one equality condition
-- Ask the local model to summarize/analyze a small row sample
-- Respect Supabase Row Level Security (RLS)
-- Optional table allowlist
-- No insert, update, delete, SQL execution, or schema modification
+v1.8 adds a persistent local scheduler. You can tell the agent to run supported tasks:
+
+- once at a specific local date/time,
+- every N minutes,
+- every day at a specific local time.
+
+Automation tasks are stored locally in `data/automations.json`, so they survive an app restart. Run history is stored in `data/automation_log.jsonl`.
+
+### Supported automated actions
+
+```text
+search <query>
+gmail-summary [gmail query]
+gmail-search <gmail query>
+repo-analyze [owner/repo]
+repo-commits [owner/repo]
+papers <topic>
+research <topic>
+db-analyze <table> [limit]
+ask <prompt>
+```
+
+The `db-analyze` action only works if Supabase is configured. Supabase can remain skipped and all other automation features still work.
+
+## Important runtime limitation
+
+This is a **local scheduler**. The Masum AI Agent process must be running:
+
+```powershell
+python main.py
+```
+
+If the app/computer is off, scheduled tasks cannot execute at that moment. The task definitions stay saved. When the app starts again, an overdue enabled task is detected by the scheduler and can run on the next scheduler check.
+
+For true always-on automation later, the project can be extended with Windows Task Scheduler, a background service, or a cloud worker.
 
 ## Update
 
@@ -25,38 +52,19 @@ git pull origin main
 pip install -r requirements.txt
 ```
 
-v1.7 uses Python's built-in HTTP libraries, so no new Supabase Python package is required.
+v1.8 uses only Python standard-library scheduling/storage code, so no new automation package is required.
 
-## Configure Supabase
+## .env settings
 
-In Supabase Dashboard, copy:
-
-- **Project URL**
-- **anon / publishable key** suitable for client-side access
-
-Put them only in your local `.env`:
+Add:
 
 ```env
-SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_ANON_KEY=your_real_anon_key
-SUPABASE_SCHEMA=public
-SUPABASE_TIMEOUT=20
-SUPABASE_MAX_ROWS=20
-SUPABASE_PREVIEW_CHARS=16000
-SUPABASE_ALLOWED_TABLES=
+AUTOMATION_TASKS_PATH=data/automations.json
+AUTOMATION_LOG_PATH=data/automation_log.jsonl
+AUTOMATION_CHECK_SECONDS=30
 ```
 
-Do not paste a service-role/secret key into this project. v1.7 is designed around the anon/publishable client key and RLS.
-
-### Optional table allowlist
-
-To make the agent see only selected tables even if the anon key can access more:
-
-```env
-SUPABASE_ALLOWED_TABLES=profiles,products,orders
-```
-
-Leave it blank to allow all tables that are already permitted by the anon key and RLS.
+The `data/` folder is already ignored by Git.
 
 ## Run
 
@@ -64,108 +72,165 @@ Leave it blank to allow all tables that are already permitted by the anon key an
 python main.py
 ```
 
-Startup header includes:
+The startup banner includes:
 
 ```text
-🤖 MASUM AI AGENT v1.7 — SUPABASE / DATABASE AGENT
-Database : Supabase read-only | configured
+🤖 MASUM AI AGENT v1.8 — AUTOMATION
+Automation: local scheduler | check every 30s
 ```
 
-## Database commands
+## Automation commands
 
-Check configuration and connection:
+Show help:
 
 ```text
-/db-status
+/auto-help
 ```
 
-Discover visible tables:
+Show all tasks:
 
 ```text
-/db-tables
+/auto-list
 ```
 
-Read rows:
+### Daily automation
+
+Every day at 9:00 AM, summarize unread/recent Gmail:
 
 ```text
-/db-read profiles
+/auto-add-daily 09:00 :: gmail-summary is:unread newer_than:1d
 ```
 
-or limit the sample:
+Every day at 8:00 PM, search latest AI news:
 
 ```text
-/db-read profiles 5
+/auto-add-daily 20:00 :: search latest AI news
 ```
 
-Filter one column:
+### Interval automation
+
+Check recent commits every 60 minutes:
 
 ```text
-/db-filter profiles :: status=active
+/auto-add-every 60 :: repo-commits gitwithmasum/Masum-AI-Agent
 ```
 
-Analyze a small sample with the local model:
+Search AI news every 120 minutes:
 
 ```text
-/db-analyze profiles 10
+/auto-add-every 120 :: search latest artificial intelligence news
 ```
 
-## Security model
-
-The database layer is intentionally read-only:
-
-- Only HTTP GET requests are implemented.
-- No database write tools exist.
-- No raw SQL execution exists.
-- Table/column identifiers are validated.
-- Supabase RLS remains authoritative.
-- An optional table allowlist adds another local restriction.
-- Never use a Supabase service-role key in this local agent.
-
-## Existing capabilities
-
-- Local Ollama AI
-- Persistent memory
-- Web search
-- PDF/DOCX/TXT/Markdown intelligence
-- Academic research agent
-- GitHub read-only agent
-- Gmail read-only agent
-- Supabase/database read-only agent
-
-## Main commands
+### One-time automation
 
 ```text
-/db-status
-/db-tables
-/db-read <table> [limit]
-/db-filter <table> :: <column>=<value>
-/db-analyze <table> [limit]
+/auto-add-once 2026-10-10 18:30 :: papers retrieval augmented generation
+```
 
-/gmail-status
-/gmail-auth
-/gmail-inbox [count]
-/gmail-search <query>
-/gmail-read <message-id>
-/gmail-summary [query]
+The date/time uses the computer's local timezone.
 
-/repo [owner/repo]
-/repo-files [owner/repo] :: [path]
-/repo-read <owner/repo> :: <path>
-/repo-commits [owner/repo]
-/repo-issues [owner/repo]
-/repo-analyze [owner/repo]
+## Manage tasks
 
-/papers <topic>
-/research <topic>
+Each automation gets an 8-character ID.
 
-/files
-/read <filename>
-/ask-file <filename> :: <question>
+Run immediately:
 
-/search <query>
-/memory
-/clear-memory
-exit
+```text
+/auto-run <id>
+```
+
+Pause:
+
+```text
+/auto-disable <id>
+```
+
+Resume:
+
+```text
+/auto-enable <id>
+```
+
+Delete:
+
+```text
+/auto-remove <id>
+```
+
+See recent automation runs:
+
+```text
+/auto-log
+```
+
+or:
+
+```text
+/auto-log 50
+```
+
+## Useful setups
+
+### Morning Gmail brief
+
+Requires Gmail OAuth to be authorized:
+
+```text
+/auto-add-daily 09:00 :: gmail-summary is:unread newer_than:1d
+```
+
+### GitHub project watch
+
+```text
+/auto-add-every 60 :: repo-commits gitwithmasum/Masum-AI-Agent
+```
+
+### Daily research discovery
+
+```text
+/auto-add-daily 19:00 :: papers machine learning artificial intelligence
+```
+
+### Generate a recurring research report
+
+```text
+/auto-add-daily 21:00 :: research retrieval augmented generation
+```
+
+This creates Markdown reports in `research_reports/`, so do not schedule it too frequently unless you want many files.
+
+### General AI prompt
+
+```text
+/auto-add-daily 08:00 :: ask Give me a short study plan for today
+```
+
+## Safety
+
+v1.8 automation dispatches only a fixed allowlist of project actions. It does **not** execute arbitrary PowerShell, CMD, shell, or Python code.
+
+Existing GitHub, Gmail, and Supabase integrations remain read-only.
+
+## Architecture
+
+```text
+Masum AI Agent
+    |
+    +-- interactive chat
+    |
+    +-- AutomationStore
+          |
+          +-- data/automations.json
+          +-- data/automation_log.jsonl
+          |
+          +-- background scheduler
+                 |
+                 +-- web search
+                 +-- Gmail read/summary
+                 +-- GitHub read/analyze
+                 +-- paper/research workflow
+                 +-- optional DB analysis
+                 +-- local AI prompt
 ```
 
 ## Roadmap
@@ -177,18 +242,20 @@ exit
 - v1.4 — Research Agent ✅
 - v1.5 — GitHub Agent ✅
 - v1.6 — Gmail Agent ✅
-- v1.7 — Supabase / Database Agent ✅
-- v1.8 — Automation
+- v1.7 — Supabase / Database Agent ✅ (optional setup)
+- v1.8 — Automation ✅
 - v2.0 — Multi-Agent System
 - v3.0 — Web Dashboard
 - v4.0 — Voice Agent
 
 ## Security
 
-- `.env` is ignored by Git.
-- Gmail and GitHub integrations remain read-only.
-- Supabase access is read-only and RLS-respecting.
-- Never publish OAuth tokens, GitHub tokens, database secrets, or API keys.
+- Automation files stay in the ignored `data/` directory.
+- No arbitrary operating-system command execution.
+- Gmail remains read-only.
+- GitHub remains read-only.
+- Supabase remains read-only and optional.
+- Never commit OAuth tokens, API keys, or database secrets.
 
 ## Author
 

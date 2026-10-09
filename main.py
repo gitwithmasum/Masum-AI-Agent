@@ -10,6 +10,8 @@ import urllib.request
 from datetime import datetime
 from pathlib import Path
 
+from automation_engine import AutomationStore, automation_loop
+
 from ddgs import DDGS
 from ddgs.exceptions import DDGSException
 from docx import Document
@@ -78,6 +80,16 @@ SUPABASE_ALLOWED_TABLES = {
     for item in os.getenv("SUPABASE_ALLOWED_TABLES", "").split(",")
     if item.strip()
 }
+
+AUTOMATION_TASKS_PATH = Path(
+    os.getenv("AUTOMATION_TASKS_PATH", "data/automations.json")
+)
+AUTOMATION_LOG_PATH = Path(
+    os.getenv("AUTOMATION_LOG_PATH", "data/automation_log.jsonl")
+)
+AUTOMATION_CHECK_SECONDS = int(
+    os.getenv("AUTOMATION_CHECK_SECONDS", "30")
+)
 
 SUPPORTED_FILE_EXTENSIONS = {".pdf", ".txt", ".md", ".docx"}
 
@@ -2006,6 +2018,155 @@ async def answer_file_question(
         print("\n⏱️ File question timed out. Try a shorter question or smaller file.")
 
 
+
+def automation_help_text() -> str:
+    return """Automation actions supported:
+- search <query>
+- gmail-summary [gmail query]
+- gmail-search <gmail query>
+- repo-analyze [owner/repo]
+- repo-commits [owner/repo]
+- papers <topic>
+- research <topic>
+- db-analyze <table> [limit]   (only if Supabase is configured)
+- ask <prompt>
+
+Schedule commands:
+- /auto-add-daily HH:MM :: <action>
+- /auto-add-every MINUTES :: <action>
+- /auto-add-once YYYY-MM-DD HH:MM :: <action>
+- /auto-list
+- /auto-run <id>
+- /auto-enable <id>
+- /auto-disable <id>
+- /auto-remove <id>
+- /auto-log
+
+Examples:
+- /auto-add-daily 09:00 :: gmail-summary is:unread newer_than:1d
+- /auto-add-every 60 :: repo-commits gitwithmasum/Masum-AI-Agent
+- /auto-add-daily 20:00 :: search latest AI news
+- /auto-add-once 2026-10-10 18:30 :: papers retrieval augmented generation
+"""
+
+
+async def execute_automation_action(
+    agent: Agent,
+    action: str,
+) -> str:
+    action = action.strip()
+    lower = action.lower()
+
+    if lower.startswith("search "):
+        query = action[len("search "):].strip()
+        return await asyncio.to_thread(search_web, query)
+
+    if lower == "gmail-summary":
+        return await gmail_summary_text(agent)
+
+    if lower.startswith("gmail-summary "):
+        query = action[len("gmail-summary "):].strip()
+        return await gmail_summary_text(agent, query)
+
+    if lower.startswith("gmail-search "):
+        query = action[len("gmail-search "):].strip()
+        return await asyncio.to_thread(gmail_search_text, query)
+
+    if lower == "repo-analyze":
+        return await analyze_github_repo(agent)
+
+    if lower.startswith("repo-analyze "):
+        repo_name = action[len("repo-analyze "):].strip()
+        return await analyze_github_repo(agent, repo_name)
+
+    if lower == "repo-commits":
+        return await asyncio.to_thread(github_recent_commits_text)
+
+    if lower.startswith("repo-commits "):
+        repo_name = action[len("repo-commits "):].strip()
+        return await asyncio.to_thread(
+            github_recent_commits_text,
+            repo_name,
+        )
+
+    if lower.startswith("papers "):
+        topic = action[len("papers "):].strip()
+        return await asyncio.to_thread(
+            search_academic_papers,
+            topic,
+        )
+
+    if lower.startswith("research "):
+        topic = action[len("research "):].strip()
+        report_text, report_path = await create_research_report(
+            agent,
+            topic,
+        )
+        suffix = (
+            f"\\n\\nSaved report: {report_path}"
+            if report_path
+            else ""
+        )
+        return report_text + suffix
+
+    if lower.startswith("db-analyze "):
+        payload = action[len("db-analyze "):].strip()
+        parts = payload.split()
+        if not parts:
+            return "Usage: db-analyze <table> [limit]"
+
+        table_name = parts[0]
+        limit = None
+
+        if len(parts) >= 2:
+            try:
+                limit = int(parts[1])
+            except ValueError:
+                return "Usage: db-analyze <table> [limit]"
+
+        return await supabase_analyze_table_text(
+            agent,
+            table_name,
+            limit,
+        )
+
+    if lower.startswith("ask "):
+        prompt = action[len("ask "):].strip()
+        if not prompt:
+            return "Automation ask prompt is empty."
+
+        result = await asyncio.wait_for(
+            Runner.run(agent, prompt),
+            timeout=AGENT_TIMEOUT_SECONDS,
+        )
+        return str(result.final_output)
+
+    return (
+        "Unsupported automation action. Use /auto-help to see "
+        "the allowed actions."
+    )
+
+
+async def run_automation_task_now(
+    store: AutomationStore,
+    agent: Agent,
+    task_id: str,
+) -> str:
+    task = store.get(task_id)
+    if not task:
+        return f"Automation task not found: {task_id}"
+
+    action = task.get("action") or ""
+    try:
+        result = await execute_automation_action(agent, action)
+        store.mark_result(task_id, "manual-success", str(result))
+        return str(result)
+    except Exception as error:
+        message = f"Automation failed: {error}"
+        store.mark_result(task_id, "manual-error", message)
+        return message
+
+
 async def main() -> None:
     ensure_knowledge_dir()
     ensure_research_report_dir()
@@ -2013,12 +2174,16 @@ async def main() -> None:
     try:
         agent, provider, model_name = build_agent()
         session = build_memory_session()
+        automation_store = AutomationStore(
+            AUTOMATION_TASKS_PATH,
+            AUTOMATION_LOG_PATH,
+        )
     except RuntimeError as error:
         print(f"\n❌ Startup error: {error}\n")
         return
 
     print("=" * 64)
-    print("🤖 MASUM AI AGENT v1.7 — SUPABASE / DATABASE AGENT")
+    print("🤖 MASUM AI AGENT v1.8 — AUTOMATION")
     print(f"Provider : {provider}")
     print(f"Model    : {model_name}")
     if provider == "ollama":
@@ -2032,9 +2197,12 @@ async def main() -> None:
     gmail_ready = GMAIL_TOKEN_PATH.exists()
     print(f"Gmail    : read-only | {'authorized' if gmail_ready else 'setup required'}")
     print(f"Database : Supabase read-only | {'configured' if supabase_configured() else 'setup required'}")
+    print(f"Automation: local scheduler | check every {AUTOMATION_CHECK_SECONDS}s")
     print(f"Timeout  : chat {AGENT_TIMEOUT_SECONDS}s | research {RESEARCH_TIMEOUT_SECONDS}s")
     print(
-        "Commands : /db-status, /db-tables, /db-read <table> [limit], "
+        "Commands : /auto-help, /auto-list, /auto-add-daily, /auto-add-every, "
+        "/auto-add-once, /auto-run, /auto-enable, /auto-disable, /auto-remove, /auto-log, "
+        "/db-status, /db-tables, /db-read <table> [limit], "
         "/db-filter <table> :: <column>=<value>, /db-analyze <table> [limit], "
         "/gmail-status, /gmail-auth, /gmail-inbox [count], "
         "/gmail-search <query>, /gmail-read <message-id>, /gmail-summary [query], "
@@ -2047,8 +2215,18 @@ async def main() -> None:
     )
     print("=" * 64)
 
+    scheduler_task = asyncio.create_task(
+        automation_loop(
+            automation_store,
+            lambda action: execute_automation_action(agent, action),
+            AUTOMATION_CHECK_SECONDS,
+        )
+    )
+
     while True:
-        user_input = input("\nMasum: ").strip()
+        user_input = (
+            await asyncio.to_thread(input, "\nMasum: ")
+        ).strip()
 
         if user_input.lower() in {"exit", "quit"}:
             print("\nAgent: Goodbye Masum 👋")
@@ -2115,6 +2293,164 @@ async def main() -> None:
 
 
 
+
+
+        if user_input.lower() == "/auto-help":
+            print(f"\n{automation_help_text()}")
+            continue
+
+        if user_input.lower() == "/auto-list":
+            print(f"\n{automation_store.format_tasks()}")
+            continue
+
+        if user_input.lower().startswith("/auto-add-daily "):
+            payload = user_input[len("/auto-add-daily "):].strip()
+            if "::" not in payload:
+                print(
+                    "\nUsage: /auto-add-daily HH:MM :: <action>"
+                )
+                continue
+
+            time_value, action = (
+                part.strip()
+                for part in payload.split("::", 1)
+            )
+
+            try:
+                task = automation_store.add_daily(
+                    time_value,
+                    action,
+                )
+                print(
+                    f"\n✅ Automation created: {task['id']} | "
+                    f"next run {task['next_run']}"
+                )
+            except ValueError as error:
+                print(f"\n❌ {error}")
+            continue
+
+        if user_input.lower().startswith("/auto-add-every "):
+            payload = user_input[len("/auto-add-every "):].strip()
+            if "::" not in payload:
+                print(
+                    "\nUsage: /auto-add-every MINUTES :: <action>"
+                )
+                continue
+
+            minutes_text, action = (
+                part.strip()
+                for part in payload.split("::", 1)
+            )
+
+            try:
+                task = automation_store.add_interval(
+                    int(minutes_text),
+                    action,
+                )
+                print(
+                    f"\n✅ Automation created: {task['id']} | "
+                    f"next run {task['next_run']}"
+                )
+            except (ValueError, TypeError) as error:
+                print(f"\n❌ {error}")
+            continue
+
+        if user_input.lower().startswith("/auto-add-once "):
+            payload = user_input[len("/auto-add-once "):].strip()
+            if "::" not in payload:
+                print(
+                    "\nUsage: /auto-add-once "
+                    "YYYY-MM-DD HH:MM :: <action>"
+                )
+                continue
+
+            when_value, action = (
+                part.strip()
+                for part in payload.split("::", 1)
+            )
+
+            try:
+                task = automation_store.add_once(
+                    when_value,
+                    action,
+                )
+                print(
+                    f"\n✅ Automation created: {task['id']} | "
+                    f"next run {task['next_run']}"
+                )
+            except ValueError as error:
+                print(f"\n❌ {error}")
+            continue
+
+        if user_input.lower().startswith("/auto-run "):
+            task_id = user_input[len("/auto-run "):].strip()
+            if not task_id:
+                print("\nUsage: /auto-run <id>")
+                continue
+
+            print(f"\n⚙️ Running automation {task_id} now...")
+            print(
+                f"\n{await run_automation_task_now(
+                    automation_store,
+                    agent,
+                    task_id,
+                )}"
+            )
+            continue
+
+        if user_input.lower().startswith("/auto-enable "):
+            task_id = user_input[len("/auto-enable "):].strip()
+            try:
+                task = automation_store.set_enabled(
+                    task_id,
+                    True,
+                )
+                if task:
+                    print(
+                        f"\n✅ Automation {task_id} enabled. "
+                        f"Next run: {task.get('next_run')}"
+                    )
+                else:
+                    print(f"\nAutomation task not found: {task_id}")
+            except ValueError as error:
+                print(f"\n❌ {error}")
+            continue
+
+        if user_input.lower().startswith("/auto-disable "):
+            task_id = user_input[len("/auto-disable "):].strip()
+            task = automation_store.set_enabled(
+                task_id,
+                False,
+            )
+            if task:
+                print(f"\n⏸️ Automation {task_id} disabled.")
+            else:
+                print(f"\nAutomation task not found: {task_id}")
+            continue
+
+        if user_input.lower().startswith("/auto-remove "):
+            task_id = user_input[len("/auto-remove "):].strip()
+            if automation_store.remove(task_id):
+                print(f"\n🗑️ Automation {task_id} removed.")
+            else:
+                print(f"\nAutomation task not found: {task_id}")
+            continue
+
+        if user_input.lower() == "/auto-log":
+            print(f"\n{automation_store.format_log()}")
+            continue
+
+        if user_input.lower().startswith("/auto-log "):
+            raw_limit = user_input[len("/auto-log "):].strip()
+            try:
+                log_limit = int(raw_limit)
+            except ValueError:
+                print("\nUsage: /auto-log [count]")
+                continue
+            print(
+                f"\n{automation_store.format_log(log_limit)}"
+            )
+            continue
 
         if user_input.lower() == "/db-status":
             print(f"\n{supabase_status_text()}")
@@ -2349,7 +2685,7 @@ async def main() -> None:
         except asyncio.TimeoutError:
             print(
                 "\n⏱️ Response timed out. Try a direct command such as "
-                "/db-status, /db-read, /gmail-inbox, /gmail-search, /repo, /repo-analyze, /papers, /research, /search, or /ask-file."
+                "/auto-list, /db-status, /db-read, /gmail-inbox, /gmail-search, /repo, /repo-analyze, /papers, /research, /search, or /ask-file."
             )
         except Exception as error:
             print(f"\n❌ Error: {error}")
