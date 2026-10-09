@@ -1,5 +1,30 @@
 # Masum AI Agent
 
+## v4.0 — Voice Agent
+
+v4.0 adds microphone input and spoken replies to the local Web Dashboard while preserving all v3.0 features.
+
+Voice features:
+- Bangla (bn-BD), English US and English UK recognition modes
+- Voice Link / MIC controls inside Neural Chat
+- optional automatic submit after recognition
+- browser text-to-speech for AI replies
+- Ctrl + Space microphone shortcut
+- browser-saved voice preferences
+- graceful typed-chat fallback
+
+Privacy: Ollama/agent processing stays on the configured AI stack, but browser speech recognition may use an online speech service depending on the browser. Do not assume speech-to-text is fully offline.
+
+Update and run from PowerShell:
+    git pull origin main
+    .\.venv\Scripts\Activate.ps1
+    pip install -r requirements.txt
+    python dashboard.py
+
+Then open http://127.0.0.1:8765, enter Neural Chat, allow microphone permission, choose Bangla or English, and click MIC.
+
+---
+
 Local-first personal AI system with Ollama, multi-agent routing, automation, Gmail intelligence, research, GitHub inspection, optional Supabase and a futuristic local web dashboard.
 
 ## Current version

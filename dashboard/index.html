@@ -18,7 +18,7 @@
         <div class="brand-mark">M</div>
         <div>
           <strong>MASUM AI</strong>
-          <span>AGENT OS // v3.0</span>
+          <span>AGENT OS // v4.0</span>
         </div>
       </div>
 
@@ -56,7 +56,7 @@
           <div>
             <p class="eyebrow">SYSTEM ONLINE</p>
             <h2>Your local AI stack, one cockpit.</h2>
-            <p class="muted">Multi-agent routing, Gmail intelligence, research, GitHub inspection and persistent automation.</p>
+            <p class="muted">Multi-agent routing, voice interaction, Gmail intelligence, research, GitHub inspection and persistent automation.</p>
           </div>
           <button class="primary" data-open-chat>OPEN NEURAL CHAT →</button>
         </div>
@@ -111,6 +111,16 @@
                   <span></span>
                   Team review
                 </label>
+                <label class="toggle">
+                  <input type="checkbox" id="speakReplies">
+                  <span></span>
+                  Speak replies
+                </label>
+                <select id="voiceLanguage" aria-label="Voice language">
+                  <option value="bn-BD">বাংলা</option>
+                  <option value="en-US">English US</option>
+                  <option value="en-GB">English UK</option>
+                </select>
               </div>
             </div>
 
@@ -124,8 +134,24 @@
               </div>
             </div>
 
+            <div class="voice-console" id="voiceConsole">
+              <button class="voice-orb" id="voiceBtn" type="button" aria-label="Start voice input">◉</button>
+              <div class="voice-meta">
+                <span class="tag">VOICE LINK</span>
+                <strong id="voiceState">READY</strong>
+                <small id="voiceHint">Click MIC or press Ctrl + Space and speak.</small>
+              </div>
+              <label class="toggle">
+                <input type="checkbox" id="voiceAutoSend" checked>
+                <span></span>
+                Auto-send
+              </label>
+              <button class="secondary" id="stopSpeechBtn" type="button">STOP VOICE</button>
+            </div>
+
             <form class="composer" id="chatForm">
-              <textarea id="chatInput" rows="2" placeholder="Ask, research, inspect, reason…" maxlength="12000"></textarea>
+              <textarea id="chatInput" rows="2" placeholder="Type or use Voice Link…" maxlength="12000"></textarea>
+              <button class="voice-mini" id="voiceMiniBtn" type="button">MIC</button>
               <button class="primary" id="sendBtn" type="submit">SEND</button>
             </form>
           </article>

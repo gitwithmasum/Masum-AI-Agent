@@ -195,3 +195,133 @@ $("#refreshReports").addEventListener("click",loadReports);
 
 Promise.all([loadStatus(),loadAgents(),loadAutomations(),loadReports()]);
 setInterval(loadStatus,30000);
+
+// v4.0 Voice Agent
+(function(){
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const voiceBtn = document.querySelector("#voiceBtn");
+  const voiceMiniBtn = document.querySelector("#voiceMiniBtn");
+  const voiceState = document.querySelector("#voiceState");
+  const voiceHint = document.querySelector("#voiceHint");
+  const voiceConsole = document.querySelector("#voiceConsole");
+  const input = document.querySelector("#chatInput");
+  const form = document.querySelector("#chatForm");
+  const lang = document.querySelector("#voiceLanguage");
+  const autoSend = document.querySelector("#voiceAutoSend");
+  const speakReplies = document.querySelector("#speakReplies");
+  const stopBtn = document.querySelector("#stopSpeechBtn");
+  if(!voiceBtn || !voiceMiniBtn || !input || !form) return;
+  let recognition = null;
+  let listening = false;
+  let lastAgentText = "";
+
+  function setState(label, mode, hint){
+    voiceState.textContent = label;
+    voiceState.className = mode === "listening" ? "listening" : (mode === "error" ? "error" : "");
+    voiceBtn.classList.toggle("listening", mode === "listening");
+    voiceMiniBtn.classList.toggle("listening", mode === "listening");
+    if(hint) voiceHint.textContent = hint;
+  }
+
+  function savePrefs(){
+    localStorage.setItem("masum.voice.lang", lang.value);
+    localStorage.setItem("masum.voice.auto", autoSend.checked ? "1" : "0");
+    localStorage.setItem("masum.voice.speak", speakReplies.checked ? "1" : "0");
+  }
+
+  function loadPrefs(){
+    const savedLang = localStorage.getItem("masum.voice.lang");
+    if(savedLang) lang.value = savedLang;
+    const savedAuto = localStorage.getItem("masum.voice.auto");
+    autoSend.checked = savedAuto === null ? true : savedAuto === "1";
+    speakReplies.checked = localStorage.getItem("masum.voice.speak") === "1";
+  }
+
+  function cleanSpeech(text){
+    return String(text || "").replace(/https?:\/\/\S+/g, " link ").replace(/[#*_>~]/g, " ").replace(/\s+/g, " ").trim();
+  }
+
+  function speak(text){
+    if(!("speechSynthesis" in window) || !speakReplies.checked) return;
+    const clean = cleanSpeech(text);
+    if(!clean) return;
+    window.speechSynthesis.cancel();
+    const utter = new SpeechSynthesisUtterance(clean.slice(0, 1800));
+    utter.lang = lang.value;
+    utter.rate = lang.value.indexOf("bn") === 0 ? 0.95 : 1;
+    setState("SPEAKING", "ready", "Masum AI is speaking.");
+    utter.onend = function(){ setState("READY", "ready", "Click MIC or press Ctrl + Space and speak."); };
+    utter.onerror = function(){ setState("TTS ERROR", "error", "Browser voice output failed."); };
+    window.speechSynthesis.speak(utter);
+  }
+
+  function toggle(){
+    if(!recognition) return;
+    if("speechSynthesis" in window) window.speechSynthesis.cancel();
+    if(listening){ try{ recognition.stop(); }catch(e){} return; }
+    recognition.lang = lang.value;
+    try{ recognition.start(); }catch(e){ setState("VOICE ERROR", "error", e.message || "Could not start microphone."); }
+  }
+
+  loadPrefs();
+  lang.addEventListener("change", savePrefs);
+  autoSend.addEventListener("change", savePrefs);
+  speakReplies.addEventListener("change", savePrefs);
+  stopBtn.addEventListener("click", function(){
+    if(recognition && listening){ try{ recognition.stop(); }catch(e){} }
+    if("speechSynthesis" in window) window.speechSynthesis.cancel();
+    setState("READY", "ready", "Voice stopped.");
+  });
+
+  if(!SR){
+    voiceBtn.disabled = true;
+    voiceMiniBtn.disabled = true;
+    voiceConsole.classList.add("voice-unsupported");
+    setState("UNSUPPORTED", "error", "Speech recognition is unavailable. Try Chrome or Edge.");
+  }else{
+    recognition = new SR();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognition.lang = lang.value;
+    recognition.onstart = function(){ listening = true; setState("LISTENING", "listening", "Speak now…"); };
+    recognition.onresult = function(event){
+      let interim = "";
+      let finalText = "";
+      for(let i=event.resultIndex;i<event.results.length;i++){
+        const t = event.results[i][0].transcript;
+        if(event.results[i].isFinal) finalText += t; else interim += t;
+      }
+      const transcript = (finalText || interim).trim();
+      if(transcript){ input.value = transcript; setState(finalText ? "HEARD" : "LISTENING", finalText ? "ready" : "listening", transcript); }
+      if(finalText && autoSend.checked){ setTimeout(function(){ form.requestSubmit(); }, 180); }
+    };
+    recognition.onerror = function(event){
+      listening = false;
+      const errors = {"not-allowed":"Microphone permission was blocked.","audio-capture":"No working microphone was found.","no-speech":"No speech was detected.","network":"Browser speech service had a network error."};
+      setState("VOICE ERROR", "error", errors[event.error] || ("Speech error: " + event.error));
+    };
+    recognition.onend = function(){ listening = false; voiceBtn.classList.remove("listening"); voiceMiniBtn.classList.remove("listening"); };
+    voiceBtn.addEventListener("click", toggle);
+    voiceMiniBtn.addEventListener("click", toggle);
+    setState("READY", "ready", "Click MIC or press Ctrl + Space and speak.");
+  }
+
+  document.addEventListener("keydown", function(event){
+    if(event.ctrlKey && event.code === "Space"){ event.preventDefault(); toggle(); }
+  });
+
+  const messages = document.querySelector("#messages");
+  if(messages && "MutationObserver" in window){
+    const observer = new MutationObserver(function(){
+      const nodes = messages.querySelectorAll(".agent-message p");
+      if(!nodes.length) return;
+      const text = nodes[nodes.length - 1].textContent || "";
+      if(text && text !== lastAgentText && text.indexOf("Routing request") !== 0){
+        lastAgentText = text;
+        speak(text);
+      }
+    });
+    observer.observe(messages, {childList:true, subtree:true});
+  }
+})();
