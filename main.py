@@ -67,6 +67,18 @@ GMAIL_TOKEN_PATH = Path(
 GMAIL_MAX_RESULTS = int(os.getenv("GMAIL_MAX_RESULTS", "8"))
 GMAIL_BODY_PREVIEW_CHARS = int(os.getenv("GMAIL_BODY_PREVIEW_CHARS", "12000"))
 
+SUPABASE_URL = os.getenv("SUPABASE_URL", "").strip().rstrip("/")
+SUPABASE_ANON_KEY = os.getenv("SUPABASE_ANON_KEY", "").strip()
+SUPABASE_SCHEMA = os.getenv("SUPABASE_SCHEMA", "public").strip() or "public"
+SUPABASE_TIMEOUT = int(os.getenv("SUPABASE_TIMEOUT", "20"))
+SUPABASE_MAX_ROWS = int(os.getenv("SUPABASE_MAX_ROWS", "20"))
+SUPABASE_PREVIEW_CHARS = int(os.getenv("SUPABASE_PREVIEW_CHARS", "16000"))
+SUPABASE_ALLOWED_TABLES = {
+    item.strip()
+    for item in os.getenv("SUPABASE_ALLOWED_TABLES", "").split(",")
+    if item.strip()
+}
+
 SUPPORTED_FILE_EXTENSIONS = {".pdf", ".txt", ".md", ".docx"}
 
 
@@ -1405,6 +1417,371 @@ EMAIL DATA:
         return f"Gmail summary failed: {error}\n\n{evidence}"
 
 
+
+def supabase_configured() -> bool:
+    return bool(SUPABASE_URL and SUPABASE_ANON_KEY)
+
+
+def validate_db_identifier(value: str, label: str = "identifier") -> str:
+    value = value.strip()
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", value):
+        raise ValueError(
+            f"Invalid database {label}: {value!r}. "
+            "Use only letters, numbers, and underscores."
+        )
+    return value
+
+
+def ensure_allowed_table(table_name: str) -> str:
+    table = validate_db_identifier(table_name, "table")
+    if SUPABASE_ALLOWED_TABLES and table not in SUPABASE_ALLOWED_TABLES:
+        allowed = ", ".join(sorted(SUPABASE_ALLOWED_TABLES))
+        raise ValueError(
+            f"Table '{table}' is not in SUPABASE_ALLOWED_TABLES. "
+            f"Allowed tables: {allowed}"
+        )
+    return table
+
+
+def supabase_headers() -> dict:
+    if not supabase_configured():
+        raise RuntimeError(
+            "Supabase is not configured. Add SUPABASE_URL and "
+            "SUPABASE_ANON_KEY to your local .env file."
+        )
+
+    return {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": f"Bearer {SUPABASE_ANON_KEY}",
+        "Accept": "application/json",
+        "Accept-Profile": SUPABASE_SCHEMA,
+        "Content-Profile": SUPABASE_SCHEMA,
+        "User-Agent": "Masum-AI-Agent/1.7",
+    }
+
+
+def supabase_get(
+    endpoint: str,
+    params: dict | None = None,
+):
+    url = f"{SUPABASE_URL}/rest/v1{endpoint}"
+
+    if params:
+        query = urllib.parse.urlencode(
+            {key: value for key, value in params.items() if value is not None}
+        )
+        if query:
+            url = f"{url}?{query}"
+
+    try:
+        request = urllib.request.Request(
+            url,
+            headers=supabase_headers(),
+            method="GET",
+        )
+        with urllib.request.urlopen(request, timeout=SUPABASE_TIMEOUT) as response:
+            body = response.read().decode("utf-8", errors="replace")
+            if not body:
+                return None, None
+            return json.loads(body), None
+    except ValueError as error:
+        return None, str(error)
+    except RuntimeError as error:
+        return None, str(error)
+    except urllib.error.HTTPError as error:
+        try:
+            body = json.loads(error.read().decode("utf-8", errors="replace"))
+            message = (
+                body.get("message")
+                or body.get("hint")
+                or body.get("details")
+                or str(error)
+            )
+        except Exception:
+            message = str(error)
+
+        if error.code in {401, 403}:
+            message += (
+                " Check the anon key and Supabase Row Level Security policies."
+            )
+
+        return None, f"Supabase REST error {error.code}: {message}"
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
+        return None, f"Supabase request failed: {error}"
+    except json.JSONDecodeError as error:
+        return None, f"Supabase returned invalid JSON: {error}"
+
+
+def supabase_status_text() -> str:
+    lines = [
+        "Supabase Agent: read-only",
+        f"Configured: {'Yes' if supabase_configured() else 'No'}",
+        f"Schema: {SUPABASE_SCHEMA}",
+        f"Default max rows: {SUPABASE_MAX_ROWS}",
+    ]
+
+    if SUPABASE_URL:
+        project_host = urllib.parse.urlparse(SUPABASE_URL).netloc or SUPABASE_URL
+        lines.append(f"Project host: {project_host}")
+    else:
+        lines.append("Project host: not configured")
+
+    if SUPABASE_ALLOWED_TABLES:
+        lines.append(
+            "Allowed tables: " + ", ".join(sorted(SUPABASE_ALLOWED_TABLES))
+        )
+    else:
+        lines.append(
+            "Allowed tables: all tables permitted by the anon key and RLS"
+        )
+
+    if not supabase_configured():
+        lines.append(
+            "Status: add SUPABASE_URL and SUPABASE_ANON_KEY to .env"
+        )
+        return "\n".join(lines)
+
+    _, error = supabase_get("/")
+    if error:
+        lines.append(f"Connection: failed — {error}")
+    else:
+        lines.append("Connection: OK")
+
+    return "\n".join(lines)
+
+
+def supabase_tables_text() -> str:
+    if not supabase_configured():
+        return (
+            "Supabase is not configured. Add SUPABASE_URL and "
+            "SUPABASE_ANON_KEY to .env."
+        )
+
+    data, error = supabase_get("/")
+    if error:
+        return error
+
+    tables = set()
+
+    if isinstance(data, dict):
+        for path in (data.get("paths") or {}):
+            name = path.strip("/")
+            if name and "/" not in name:
+                tables.add(name)
+
+        for name in (data.get("definitions") or {}):
+            if name:
+                tables.add(name)
+
+    if SUPABASE_ALLOWED_TABLES:
+        tables = {table for table in tables if table in SUPABASE_ALLOWED_TABLES}
+
+    if not tables:
+        return (
+            "No accessible tables were discovered. This can happen when "
+            "the REST schema is hidden or RLS/API exposure blocks access."
+        )
+
+    lines = [f"Accessible Supabase tables in schema '{SUPABASE_SCHEMA}':"]
+    for index, table in enumerate(sorted(tables), start=1):
+        lines.append(f"[{index}] {table}")
+
+    return "\n".join(lines)
+
+
+@function_tool
+def supabase_tables() -> str:
+    """List Supabase tables visible through the read-only REST API."""
+    return supabase_tables_text()
+
+
+def supabase_read_rows_data(
+    table_name: str,
+    limit: int | None = None,
+) -> tuple[list[dict] | None, str | None]:
+    try:
+        table = ensure_allowed_table(table_name)
+    except ValueError as error:
+        return None, str(error)
+
+    row_limit = limit or SUPABASE_MAX_ROWS
+    row_limit = max(1, min(row_limit, 100))
+
+    data, error = supabase_get(
+        f"/{urllib.parse.quote(table)}",
+        {
+            "select": "*",
+            "limit": row_limit,
+        },
+    )
+    if error:
+        return None, error
+
+    if not isinstance(data, list):
+        return None, f"Unexpected Supabase response for table '{table}'."
+
+    return data, None
+
+
+def format_supabase_rows(
+    table_name: str,
+    rows: list[dict],
+    heading: str | None = None,
+) -> str:
+    if not rows:
+        return heading or f"No visible rows found in '{table_name}'."
+
+    title = heading or f"Rows from Supabase table '{table_name}':"
+    payload = json.dumps(
+        rows,
+        ensure_ascii=False,
+        indent=2,
+        default=str,
+    )
+
+    if len(payload) > SUPABASE_PREVIEW_CHARS:
+        payload = payload[:SUPABASE_PREVIEW_CHARS].rstrip() + (
+            f"\n\n[Preview truncated at {SUPABASE_PREVIEW_CHARS} characters.]"
+        )
+
+    return f"{title}\n{payload}"
+
+
+def supabase_read_table_text(
+    table_name: str,
+    limit: int | None = None,
+) -> str:
+    rows, error = supabase_read_rows_data(table_name, limit)
+    if error:
+        return error
+    return format_supabase_rows(table_name, rows or [])
+
+
+@function_tool
+def supabase_read_table(table_name: str, limit: int = 20) -> str:
+    """
+    Read rows from a Supabase table using the anon key and current RLS policies.
+
+    This tool is strictly read-only.
+    """
+    return supabase_read_table_text(table_name, limit)
+
+
+def supabase_filter_rows_text(
+    table_name: str,
+    column_name: str,
+    value: str,
+    limit: int | None = None,
+) -> str:
+    try:
+        table = ensure_allowed_table(table_name)
+        column = validate_db_identifier(column_name, "column")
+    except ValueError as error:
+        return str(error)
+
+    row_limit = limit or SUPABASE_MAX_ROWS
+    row_limit = max(1, min(row_limit, 100))
+
+    data, error = supabase_get(
+        f"/{urllib.parse.quote(table)}",
+        {
+            "select": "*",
+            column: f"eq.{value}",
+            "limit": row_limit,
+        },
+    )
+    if error:
+        return error
+
+    if not isinstance(data, list):
+        return f"Unexpected Supabase response for table '{table}'."
+
+    return format_supabase_rows(
+        table,
+        data,
+        heading=(
+            f"Rows from '{table}' where {column} == {value!r}:"
+            if data
+            else f"No visible rows in '{table}' where {column} == {value!r}."
+        ),
+    )
+
+
+@function_tool
+def supabase_filter_rows(
+    table_name: str,
+    column_name: str,
+    value: str,
+    limit: int = 20,
+) -> str:
+    """Filter a Supabase table by one equality condition. Read-only."""
+    return supabase_filter_rows_text(
+        table_name,
+        column_name,
+        value,
+        limit,
+    )
+
+
+async def supabase_analyze_table_text(
+    agent: Agent,
+    table_name: str,
+    limit: int | None = None,
+) -> str:
+    rows, error = await asyncio.to_thread(
+        supabase_read_rows_data,
+        table_name,
+        limit,
+    )
+    if error:
+        return error
+
+    if not rows:
+        return f"No visible rows found in '{table_name}'."
+
+    evidence = json.dumps(
+        rows,
+        ensure_ascii=False,
+        indent=2,
+        default=str,
+    )
+
+    if len(evidence) > SUPABASE_PREVIEW_CHARS:
+        evidence = evidence[:SUPABASE_PREVIEW_CHARS]
+
+    prompt = f"""
+Analyze the following Supabase rows from table '{table_name}'.
+
+Rules:
+- Use ONLY the supplied rows.
+- Do not invent missing fields or database schema.
+- Mention that the sample may be incomplete.
+- Identify useful patterns, counts, missing values, or anomalies only when
+  visible from the supplied rows.
+- Reply mainly in Bangla.
+
+ROWS:
+{evidence}
+""".strip()
+
+    try:
+        result = await asyncio.wait_for(
+            Runner.run(agent, prompt),
+            timeout=AGENT_TIMEOUT_SECONDS,
+        )
+        return str(result.final_output)
+    except asyncio.TimeoutError:
+        return (
+            "Database analysis timed out in the local model.\n\n"
+            + format_supabase_rows(table_name, rows)
+        )
+    except Exception as error:
+        return (
+            f"Database analysis failed: {error}\n\n"
+            + format_supabase_rows(table_name, rows)
+        )
+
+
 INSTRUCTIONS = """
 You are Masum AI Agent, a modular personal AI assistant.
 
@@ -1428,6 +1805,9 @@ Core responsibilities:
 - Never claim to have changed a GitHub repository; GitHub tools are read-only.
 - Gmail access is read-only. Use Gmail tools only to list, search, or read messages.
 - Never claim to send, delete, archive, label, or modify email.
+- Supabase/database access is read-only. Use database tools only for listing,
+  reading, filtering, or analyzing visible rows.
+- Never claim to insert, update, delete, or alter database data or schema.
 """
 
 LOCAL_FAST_INSTRUCTIONS = INSTRUCTIONS + """
@@ -1440,6 +1820,7 @@ LOCAL_FAST_INSTRUCTIONS = INSTRUCTIONS + """
 - If the user asks about a named local document, prefer file_search with the user's question.
 - If the user asks about a GitHub repository, use the relevant GitHub tool immediately.
 - If the user asks about Gmail, use the relevant Gmail read-only tool immediately.
+- If the user asks about Supabase or database data, use the relevant read-only database tool immediately.
 /no_think
 """
 
@@ -1486,6 +1867,9 @@ def build_agent() -> tuple[Agent, str, str]:
         gmail_inbox,
         gmail_search,
         gmail_read_message,
+        supabase_tables,
+        supabase_read_table,
+        supabase_filter_rows,
     ]
 
     if provider == "ollama":
@@ -1634,7 +2018,7 @@ async def main() -> None:
         return
 
     print("=" * 64)
-    print("🤖 MASUM AI AGENT v1.6 — GMAIL AGENT")
+    print("🤖 MASUM AI AGENT v1.7 — SUPABASE / DATABASE AGENT")
     print(f"Provider : {provider}")
     print(f"Model    : {model_name}")
     if provider == "ollama":
@@ -1647,9 +2031,12 @@ async def main() -> None:
     print(f"GitHub   : read-only | default {GITHUB_OWNER}/{GITHUB_DEFAULT_REPO}")
     gmail_ready = GMAIL_TOKEN_PATH.exists()
     print(f"Gmail    : read-only | {'authorized' if gmail_ready else 'setup required'}")
+    print(f"Database : Supabase read-only | {'configured' if supabase_configured() else 'setup required'}")
     print(f"Timeout  : chat {AGENT_TIMEOUT_SECONDS}s | research {RESEARCH_TIMEOUT_SECONDS}s")
     print(
-        "Commands : /gmail-status, /gmail-auth, /gmail-inbox [count], "
+        "Commands : /db-status, /db-tables, /db-read <table> [limit], "
+        "/db-filter <table> :: <column>=<value>, /db-analyze <table> [limit], "
+        "/gmail-status, /gmail-auth, /gmail-inbox [count], "
         "/gmail-search <query>, /gmail-read <message-id>, /gmail-summary [query], "
         "/repo [owner/repo], /repos [owner], /repo-files [repo] :: [path], "
         "/repo-read <repo> :: <path>, /repo-commits [repo], /repo-issues [repo], "
@@ -1727,6 +2114,97 @@ async def main() -> None:
             continue
 
 
+
+
+        if user_input.lower() == "/db-status":
+            print(f"\n{supabase_status_text()}")
+            continue
+
+        if user_input.lower() == "/db-tables":
+            print(f"\n{supabase_tables_text()}")
+            continue
+
+        if user_input.lower().startswith("/db-read "):
+            payload = user_input[len("/db-read "):].strip()
+            parts = payload.split()
+            if not parts:
+                print("\nUsage: /db-read <table> [limit]")
+                continue
+
+            table_name = parts[0]
+            limit = None
+            if len(parts) >= 2:
+                try:
+                    limit = int(parts[1])
+                except ValueError:
+                    print("\nUsage: /db-read <table> [limit]")
+                    continue
+
+            print(
+                f"\n{await asyncio.to_thread(
+                    supabase_read_table_text,
+                    table_name,
+                    limit,
+                )}"
+            )
+            continue
+
+        if user_input.lower().startswith("/db-filter "):
+            payload = user_input[len("/db-filter "):].strip()
+            if "::" not in payload:
+                print("\nUsage: /db-filter <table> :: <column>=<value>")
+                continue
+
+            table_name, condition = (
+                part.strip()
+                for part in payload.split("::", 1)
+            )
+
+            if "=" not in condition:
+                print("\nUsage: /db-filter <table> :: <column>=<value>")
+                continue
+
+            column_name, value = (
+                part.strip()
+                for part in condition.split("=", 1)
+            )
+
+            print(
+                f"\n{await asyncio.to_thread(
+                    supabase_filter_rows_text,
+                    table_name,
+                    column_name,
+                    value,
+                    None,
+                )}"
+            )
+            continue
+
+        if user_input.lower().startswith("/db-analyze "):
+            payload = user_input[len("/db-analyze "):].strip()
+            parts = payload.split()
+            if not parts:
+                print("\nUsage: /db-analyze <table> [limit]")
+                continue
+
+            table_name = parts[0]
+            limit = None
+            if len(parts) >= 2:
+                try:
+                    limit = int(parts[1])
+                except ValueError:
+                    print("\nUsage: /db-analyze <table> [limit]")
+                    continue
+
+            print(f"\n📊 Analyzing Supabase table: {table_name}")
+            print(
+                f"\n{await supabase_analyze_table_text(
+                    agent,
+                    table_name,
+                    limit,
+                )}"
+            )
+            continue
 
         if user_input.lower() == "/gmail-status":
             print(f"\n{gmail_status_text()}")
@@ -1871,7 +2349,7 @@ async def main() -> None:
         except asyncio.TimeoutError:
             print(
                 "\n⏱️ Response timed out. Try a direct command such as "
-                "/gmail-inbox, /gmail-search, /repo, /repo-analyze, /papers, /research, /search, or /ask-file."
+                "/db-status, /db-read, /gmail-inbox, /gmail-search, /repo, /repo-analyze, /papers, /research, /search, or /ask-file."
             )
         except Exception as error:
             print(f"\n❌ Error: {error}")

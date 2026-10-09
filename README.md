@@ -1,21 +1,21 @@
 # Masum AI Agent
 
-A local-first modular AI Agent built with Python, OpenAI Agents SDK, Ollama, web search, OpenAlex, local document intelligence, GitHub intelligence, and Gmail read-only access.
+A local-first modular AI Agent built with Python, OpenAI Agents SDK, Ollama, web search, OpenAlex, local document intelligence, GitHub intelligence, Gmail read-only access, and Supabase read-only database access.
 
 ## Current version
 
-**v1.6 — Gmail Agent (Read-Only)**
+**v1.7 — Supabase / Database Agent (Read-Only)**
 
-### What v1.6 adds
+### What v1.7 adds
 
-- Gmail OAuth login using Google's official desktop-app flow
-- Read-only Gmail scope: `gmail.readonly`
-- Recent inbox listing
-- Gmail search using normal Gmail search syntax
-- Read individual messages by message ID
-- Local AI summary of recent/search-matched messages
-- OAuth token stored only in the local `secrets/` folder
-- No send, delete, archive, label, or other mailbox modification capability
+- Connect to a Supabase project using the project URL and anon key
+- Detect accessible REST tables
+- Read rows from tables
+- Filter rows using one equality condition
+- Ask the local model to summarize/analyze a small row sample
+- Respect Supabase Row Level Security (RLS)
+- Optional table allowlist
+- No insert, update, delete, SQL execution, or schema modification
 
 ## Update
 
@@ -25,112 +25,101 @@ git pull origin main
 pip install -r requirements.txt
 ```
 
-## Google Cloud setup — first time only
+v1.7 uses Python's built-in HTTP libraries, so no new Supabase Python package is required.
 
-1. Open Google Cloud Console and create/select a project.
-2. Enable **Gmail API**.
-3. Configure the OAuth consent screen.
-4. Create an OAuth Client ID with application type **Desktop app**.
-5. Download the OAuth JSON file.
-6. Rename/save it as:
+## Configure Supabase
 
-```text
-Masum-AI-Agent/
-└── secrets/
-    └── gmail_credentials.json
-```
+In Supabase Dashboard, copy:
 
-If your OAuth app is still in testing mode, add your own Google account as a test user.
+- **Project URL**
+- **anon / publishable key** suitable for client-side access
 
-The `secrets/` folder contents are ignored by Git.
-
-## .env additions
+Put them only in your local `.env`:
 
 ```env
-GMAIL_CREDENTIALS_PATH=secrets/gmail_credentials.json
-GMAIL_TOKEN_PATH=secrets/gmail_token.json
-GMAIL_MAX_RESULTS=8
-GMAIL_BODY_PREVIEW_CHARS=12000
+SUPABASE_URL=https://your-project-ref.supabase.co
+SUPABASE_ANON_KEY=your_real_anon_key
+SUPABASE_SCHEMA=public
+SUPABASE_TIMEOUT=20
+SUPABASE_MAX_ROWS=20
+SUPABASE_PREVIEW_CHARS=16000
+SUPABASE_ALLOWED_TABLES=
 ```
 
-## Authorize Gmail
+Do not paste a service-role/secret key into this project. v1.7 is designed around the anon/publishable client key and RLS.
 
-Run:
+### Optional table allowlist
+
+To make the agent see only selected tables even if the anon key can access more:
+
+```env
+SUPABASE_ALLOWED_TABLES=profiles,products,orders
+```
+
+Leave it blank to allow all tables that are already permitted by the anon key and RLS.
+
+## Run
 
 ```powershell
 python main.py
 ```
 
-Then:
+Startup header includes:
 
 ```text
-/gmail-status
-/gmail-auth
+🤖 MASUM AI AGENT v1.7 — SUPABASE / DATABASE AGENT
+Database : Supabase read-only | configured
 ```
 
-The first authorization opens a browser. Sign in to the Gmail account you want the local agent to read and approve the read-only permission.
+## Database commands
 
-After successful OAuth, the local token is stored at:
+Check configuration and connection:
 
 ```text
-secrets/gmail_token.json
+/db-status
 ```
 
-Do not share or commit this file.
-
-## Gmail commands
-
-Recent inbox:
+Discover visible tables:
 
 ```text
-/gmail-inbox
+/db-tables
 ```
 
-Choose how many:
+Read rows:
 
 ```text
-/gmail-inbox 10
+/db-read profiles
 ```
 
-Search using Gmail syntax:
+or limit the sample:
 
 ```text
-/gmail-search is:unread
+/db-read profiles 5
 ```
+
+Filter one column:
 
 ```text
-/gmail-search from:github.com newer_than:30d
+/db-filter profiles :: status=active
 ```
+
+Analyze a small sample with the local model:
 
 ```text
-/gmail-search subject:interview
+/db-analyze profiles 10
 ```
 
-The results include Gmail message IDs. Read one message:
+## Security model
 
-```text
-/gmail-read <message-id>
-```
+The database layer is intentionally read-only:
 
-Summarize recent inbox messages:
-
-```text
-/gmail-summary
-```
-
-Or summarize a Gmail search:
-
-```text
-/gmail-summary is:unread newer_than:7d
-```
-
-## Privacy
-
-- Gmail scope is read-only.
-- The agent cannot send or modify email in v1.6.
-- OAuth credentials and tokens stay in the local `secrets/` folder.
-- Direct Gmail commands do not upload your Gmail OAuth token anywhere.
-- Natural-language agent runs can be recorded in the project's local SQLite conversation memory, so use `/clear-memory` if you do not want those local chat/tool records retained.
+- Only HTTP GET requests are implemented.
+- No database write tools exist.
+- No raw SQL execution exists.
+- Table/column identifiers are validated.
+- Supabase RLS remains authoritative.
+- An optional table allowlist adds another local restriction.
+- Never use a Supabase service-role key in this local agent.
 
 ## Existing capabilities
 
@@ -141,16 +130,23 @@ Or summarize a Gmail search:
 - Academic research agent
 - GitHub read-only agent
 - Gmail read-only agent
+- Supabase/database read-only agent
 
 ## Main commands
 
 ```text
+/db-status
+/db-tables
+/db-read <table> [limit]
+/db-filter <table> :: <column>=<value>
+/db-analyze <table> [limit]
+
 /gmail-status
 /gmail-auth
 /gmail-inbox [count]
-/gmail-search <gmail query>
+/gmail-search <query>
 /gmail-read <message-id>
-/gmail-summary [gmail query]
+/gmail-summary [query]
 
 /repo [owner/repo]
 /repo-files [owner/repo] :: [path]
@@ -181,7 +177,7 @@ exit
 - v1.4 — Research Agent ✅
 - v1.5 — GitHub Agent ✅
 - v1.6 — Gmail Agent ✅
-- v1.7 — Database / Supabase
+- v1.7 — Supabase / Database Agent ✅
 - v1.8 — Automation
 - v2.0 — Multi-Agent System
 - v3.0 — Web Dashboard
@@ -189,9 +185,10 @@ exit
 
 ## Security
 
-- `.env`, `data/`, `knowledge/`, `research_reports/`, and `secrets/` contents are protected from Git where applicable.
-- Gmail access is read-only.
-- Never commit OAuth credentials, OAuth tokens, GitHub tokens, or API keys.
+- `.env` is ignored by Git.
+- Gmail and GitHub integrations remain read-only.
+- Supabase access is read-only and RLS-respecting.
+- Never publish OAuth tokens, GitHub tokens, database secrets, or API keys.
 
 ## Author
 
