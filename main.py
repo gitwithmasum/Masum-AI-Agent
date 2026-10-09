@@ -2451,7 +2451,7 @@ async def main() -> None:
         return
 
     print("=" * 64)
-    print("🤖 MASUM AI AGENT v2.0 — MULTI-AGENT SYSTEM")
+    print("🤖 MASUM AI AGENT v3.0 — WEB DASHBOARD + MULTI-AGENT")
     print(f"Provider : {provider}")
     print(f"Model    : {model_name}")
     if provider == "ollama":

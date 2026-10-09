@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#07111f">
+  <title>Masum AI Agent // Control Center</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <div class="ambient ambient-a"></div>
+  <div class="ambient ambient-b"></div>
+  <div class="scanlines"></div>
+
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark">M</div>
+        <div>
+          <strong>MASUM AI</strong>
+          <span>AGENT OS // v3.0</span>
+        </div>
+      </div>
+
+      <nav class="nav">
+        <button class="nav-item active" data-target="overview">◈ Overview</button>
+        <button class="nav-item" data-target="chat">⌁ Neural Chat</button>
+        <button class="nav-item" data-target="agents">⬡ Agents</button>
+        <button class="nav-item" data-target="automation">⟳ Automation</button>
+        <button class="nav-item" data-target="research">⌬ Research</button>
+      </nav>
+
+      <div class="node-card">
+        <span class="pulse-dot" id="nodeDot"></span>
+        <div>
+          <small>LOCAL NODE</small>
+          <strong id="nodeState">CHECKING</strong>
+        </div>
+      </div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">PERSONAL INTELLIGENCE SYSTEM</p>
+          <h1>Command Center</h1>
+        </div>
+        <div class="clock-wrap">
+          <span>LOCAL TIME</span>
+          <strong id="clock">--:--:--</strong>
+        </div>
+      </header>
+
+      <section class="panel-view active" id="overview">
+        <div class="hero glass">
+          <div>
+            <p class="eyebrow">SYSTEM ONLINE</p>
+            <h2>Your local AI stack, one cockpit.</h2>
+            <p class="muted">Multi-agent routing, Gmail intelligence, research, GitHub inspection and persistent automation.</p>
+          </div>
+          <button class="primary" data-open-chat>OPEN NEURAL CHAT →</button>
+        </div>
+
+        <div class="status-grid" id="statusGrid">
+          <article class="status-card glass"><span>OLLAMA</span><strong>…</strong><small>Local inference</small></article>
+          <article class="status-card glass"><span>GMAIL</span><strong>…</strong><small>Read-only OAuth</small></article>
+          <article class="status-card glass"><span>AUTOMATION</span><strong>…</strong><small>Persistent scheduler</small></article>
+          <article class="status-card glass"><span>RESEARCH</span><strong>…</strong><small>Saved reports</small></article>
+        </div>
+
+        <div class="overview-grid">
+          <article class="glass module">
+            <div class="module-head">
+              <div><span class="tag">AGENT MATRIX</span><h3>Specialist routing</h3></div>
+              <span class="chip" id="routeChip">AUTO</span>
+            </div>
+            <div id="agentMiniList" class="mini-list"></div>
+          </article>
+
+          <article class="glass module">
+            <div class="module-head">
+              <div><span class="tag">QUICK OPS</span><h3>One-click diagnostics</h3></div>
+            </div>
+            <div class="quick-grid">
+              <button class="quick" id="gmailStatusBtn">Gmail status</button>
+              <button class="quick" id="githubSummaryBtn">GitHub summary</button>
+              <button class="quick" data-target-jump="automation">Automation center</button>
+              <button class="quick" data-target-jump="research">Research vault</button>
+            </div>
+            <pre class="terminal-output" id="quickOutput">Ready.</pre>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel-view" id="chat">
+        <div class="chat-layout">
+          <article class="glass chat-panel">
+            <div class="module-head chat-head">
+              <div><span class="tag">NEURAL LINK</span><h3>Masum AI Chat</h3></div>
+              <div class="chat-controls">
+                <select id="agentSelect">
+                  <option value="auto">Auto Router</option>
+                  <option value="general">General</option>
+                  <option value="research">Research</option>
+                  <option value="developer">Developer</option>
+                  <option value="gmail">Gmail</option>
+                  <option value="data">Data</option>
+                </select>
+                <label class="toggle">
+                  <input type="checkbox" id="teamReview">
+                  <span></span>
+                  Team review
+                </label>
+              </div>
+            </div>
+
+            <div class="messages" id="messages">
+              <div class="message agent-message">
+                <div class="avatar">AI</div>
+                <div>
+                  <small>MASUM AI // READY</small>
+                  <p>System ready. Choose an agent or leave Auto Router enabled.</p>
+                </div>
+              </div>
+            </div>
+
+            <form class="composer" id="chatForm">
+              <textarea id="chatInput" rows="2" placeholder="Ask, research, inspect, reason…" maxlength="12000"></textarea>
+              <button class="primary" id="sendBtn" type="submit">SEND</button>
+            </form>
+          </article>
+
+          <aside class="glass context-panel">
+            <span class="tag">ROUTING MAP</span>
+            <h3>Agent roles</h3>
+            <div id="chatAgentList" class="mini-list"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="panel-view" id="agents">
+        <div class="section-title">
+          <div><p class="eyebrow">SPECIALIST NETWORK</p><h2>Agent Matrix</h2></div>
+          <span class="chip">5 NODES</span>
+        </div>
+        <div class="agent-grid" id="agentGrid"></div>
+      </section>
+
+      <section class="panel-view" id="automation">
+        <div class="section-title">
+          <div><p class="eyebrow">PERSISTENT SCHEDULER</p><h2>Automation Center</h2></div>
+          <button class="secondary" id="refreshAutomations">REFRESH</button>
+        </div>
+
+        <div class="automation-layout">
+          <article class="glass module">
+            <div class="module-head"><div><span class="tag">NEW TASK</span><h3>Schedule action</h3></div></div>
+            <form id="automationForm" class="automation-form">
+              <label>Schedule
+                <select id="scheduleType">
+                  <option value="daily">Daily</option>
+                  <option value="interval">Every N minutes</option>
+                  <option value="once">One time</option>
+                </select>
+              </label>
+              <label>When / interval
+                <input id="scheduleValue" value="09:00" placeholder="09:00">
+              </label>
+              <label>Action
+                <input id="automationAction" placeholder="gmail-summary is:unread newer_than:1d">
+              </label>
+              <button class="primary" type="submit">CREATE AUTOMATION</button>
+            </form>
+            <p class="hint" id="scheduleHint">Daily uses 24-hour HH:MM.</p>
+          </article>
+
+          <article class="glass module">
+            <div class="module-head"><div><span class="tag">TASK QUEUE</span><h3>Active automations</h3></div></div>
+            <div id="automationList" class="task-list"></div>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel-view" id="research">
+        <div class="section-title">
+          <div><p class="eyebrow">KNOWLEDGE VAULT</p><h2>Research Reports</h2></div>
+          <button class="secondary" id="refreshReports">REFRESH</button>
+        </div>
+        <div class="research-layout">
+          <article class="glass module">
+            <div id="reportList" class="report-list"></div>
+          </article>
+          <article class="glass module report-reader">
+            <span class="tag">REPORT PREVIEW</span>
+            <h3 id="reportTitle">Select a report</h3>
+            <pre id="reportContent">No report selected.</pre>
+          </article>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="toast" id="toast"></div>
+  <script src="/static/app.js"></script>
+</body>
+</html>

@@ -1,167 +1,167 @@
 # Masum AI Agent
 
-A local-first personal AI system built with Python, OpenAI Agents SDK, Ollama, web search, research tools, local document intelligence, GitHub, Gmail, optional Supabase, persistent automation, and specialist-agent routing.
+Local-first personal AI system with Ollama, multi-agent routing, automation, Gmail intelligence, research, GitHub inspection, optional Supabase and a futuristic local web dashboard.
 
 ## Current version
 
-**v2.0 — Multi-Agent System**
+**v3.0 — Web Dashboard**
 
-### Agent team
+### v3.0 adds
 
-- **General Coordinator** — mixed questions, planning, explanations
-- **Research Agent** — papers, thesis, literature review, datasets, methods, evidence
-- **Developer Agent** — code, debugging, GitHub, repositories, commits, issues, architecture
-- **Gmail Agent** — read-only Gmail search/read/summary
-- **Data Agent** — optional read-only Supabase access
+- Futuristic responsive browser control center
+- Multi-agent chat with Auto Router
+- Manual General / Research / Developer / Gmail / Data selection
+- Team Review mode
+- Live Ollama, Gmail, automation and research status
+- Automation create / run / pause / resume / delete controls
+- Research report browser and preview
+- Gmail status and GitHub quick diagnostics
+- Mobile-responsive layout
+- Dashboard starts its own automation scheduler
+- Local-only network binding by default
 
-The project still uses the same local Ollama model by default. Specialist agents share the model but receive different instructions and tool permissions.
+The original CLI remains available through `python main.py`.
 
-## Why this helps
-
-Instead of exposing every tool to every task, v2.0 narrows the toolset by role. A Gmail question is routed to the Gmail specialist, a research question to Research, and GitHub/code work to Developer. This makes the small local model more predictable.
-
-## Update local VS Code copy
+## Update local copy
 
 ```powershell
 git pull origin main
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
+```
+
+## Dashboard configuration
+
+Add to local `.env`:
+
+```env
+DASHBOARD_HOST=127.0.0.1
+DASHBOARD_PORT=8765
+DASHBOARD_AUTO_OPEN=true
+```
+
+Keep `DASHBOARD_HOST=127.0.0.1` unless you intentionally add authentication and secure network exposure.
+
+## Start Web Dashboard
+
+Make sure Ollama is running, then:
+
+```powershell
+python dashboard.py
+```
+
+The browser opens automatically at:
+
+```text
+http://127.0.0.1:8765
+```
+
+If auto-open is disabled, open that address manually.
+
+## Dashboard areas
+
+### Overview
+
+Shows:
+
+- Ollama/local model status
+- Gmail authorization state
+- Active automation count
+- Saved research-report count
+- agent matrix
+- Gmail and GitHub quick diagnostics
+
+### Neural Chat
+
+Use:
+
+- Auto Router
+- General Agent
+- Research Agent
+- Developer Agent
+- Gmail Agent
+- Data Agent
+- Team Review
+
+Normal multi-agent routing and persistent conversation memory are reused from the CLI core.
+
+### Automation Center
+
+Create:
+
+- daily tasks,
+- interval tasks,
+- one-time tasks.
+
+From the dashboard you can also run, pause, enable and delete tasks.
+
+Automation state remains stored locally in:
+
+```text
+data/automations.json
+data/automation_log.jsonl
+```
+
+### Research Vault
+
+Browse and preview Markdown reports already created in:
+
+```text
+research_reports/
+```
+
+## Security model
+
+The dashboard has **no public-user authentication in v3.0**. Therefore:
+
+- default host is `127.0.0.1`,
+- do not expose port 8765 directly to the public internet,
+- Gmail remains read-only,
+- GitHub agent tools remain read-only,
+- Supabase remains read-only and optional,
+- automation still cannot execute arbitrary PowerShell/CMD/shell commands,
+- secrets remain local in `.env` and `secrets/`.
+
+## Run modes
+
+CLI:
+
+```powershell
 python main.py
 ```
 
-No new Python package is required for v2.0.
+Web Dashboard:
 
-## .env
-
-Optional settings:
-
-```env
-MULTI_AGENT_AUTO_ROUTE=true
-MULTI_AGENT_MAX_COLLABORATORS=2
-MULTI_AGENT_TIMEOUT_SECONDS=180
+```powershell
+python dashboard.py
 ```
 
-- `MULTI_AGENT_AUTO_ROUTE=true` automatically selects a specialist for normal chat.
-- `MULTI_AGENT_MAX_COLLABORATORS=2` limits multi-agent review cost/latency.
-- `MULTI_AGENT_TIMEOUT_SECONDS=180` is the per-agent timeout.
+You normally need only one of them running at a time. Both use the same local data files.
 
-## Commands
-
-Show team:
+## Main architecture
 
 ```text
-/agents
+Browser
+   |
+   v
+FastAPI Dashboard (localhost)
+   |
+   +-- Multi-Agent Router
+   |     +-- General
+   |     +-- Research
+   |     +-- Developer
+   |     +-- Gmail
+   |     +-- Data
+   |
+   +-- Automation Engine
+   +-- Research Vault
+   +-- Gmail Read-Only
+   +-- GitHub Read-Only
+   +-- Optional Supabase Read-Only
+   |
+   v
+Ollama / qwen3:1.7b
 ```
-
-Auto-route a request:
-
-```text
-/team Find recent research papers on retrieval augmented generation
-```
-
-Call a specific specialist:
-
-```text
-/agent research :: Find papers on RAG and suggest a research gap
-/agent developer :: Analyze the architecture of gitwithmasum/Masum-AI-Agent
-/agent gmail :: Summarize my unread emails
-/agent data :: Show accessible Supabase tables
-```
-
-Ask multiple agents to review a request and let the coordinator synthesize:
-
-```text
-/team-review Review my AI research project from both research and software-engineering perspectives
-```
-
-## Natural auto-routing
-
-With:
-
-```env
-MULTI_AGENT_AUTO_ROUTE=true
-```
-
-normal prompts are automatically routed.
-
-Examples:
-
-```text
-Masum: find recent papers on AI agents
-🧭 research agent
-
-Masum: check my GitHub repo architecture
-🧭 developer agent
-
-Masum: summarize unread Gmail
-🧭 gmail agent
-```
-
-## Existing automation
-
-v1.8 remains available:
-
-```text
-/auto-help
-/auto-list
-/auto-add-daily HH:MM :: <action>
-/auto-add-every MINUTES :: <action>
-/auto-add-once YYYY-MM-DD HH:MM :: <action>
-/auto-run <id>
-/auto-disable <id>
-/auto-enable <id>
-/auto-remove <id>
-/auto-log
-```
-
-The automation engine is local, so `python main.py` must be running for scheduled execution.
-
-## Existing direct tools
-
-```text
-/gmail-status
-/gmail-auth
-/gmail-inbox
-/gmail-search <query>
-/gmail-summary [query]
-
-/repo [owner/repo]
-/repo-files [repo] :: [path]
-/repo-read <repo> :: <path>
-/repo-commits [repo]
-/repo-issues [repo]
-/repo-analyze [repo]
-
-/papers <topic>
-/research <topic>
-/reports
-
-/files
-/read <file>
-/ask-file <file> :: <question>
-
-/search <query>
-
-/db-status
-/db-tables
-/db-read <table> [limit]
-/db-filter <table> :: <column>=<value>
-/db-analyze <table> [limit]
-
-/memory
-/clear-memory
-```
-
-Supabase remains optional. Leaving it unconfigured does not affect the rest of the system.
-
-## Security
-
-- Gmail is read-only.
-- GitHub agent tools are read-only.
-- Supabase tools are read-only and optional.
-- Automation cannot execute arbitrary PowerShell/CMD/shell commands.
-- Secrets remain in local `.env` / `secrets/` and are ignored by Git.
-- Specialist agents receive only the tools relevant to their role.
 
 ## Roadmap
 
@@ -174,8 +174,8 @@ Supabase remains optional. Leaving it unconfigured does not affect the rest of t
 - v1.6 — Gmail Agent ✅
 - v1.7 — Supabase / Database Agent ✅ (optional setup)
 - v1.8 — Automation ✅
-- **v2.0 — Multi-Agent System ✅**
-- v3.0 — Web Dashboard
+- v2.0 — Multi-Agent System ✅
+- **v3.0 — Web Dashboard ✅**
 - v4.0 — Voice Agent
 
 ## Author
