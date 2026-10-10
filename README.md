@@ -1,5 +1,54 @@
 # Masum AI Agent
 
+## v4.5 — Voice Actions + Smart Confirmation
+
+v4.5 extends Cirilla/Geralt from navigation commands into safe voice actions with confirmation.
+
+### Smart confirmation
+
+Impactful automation actions require an explicit confirmation:
+
+```text
+Hey Cirilla, run automation 1
+Cirilla: Confirm run automation 1 ...? Say yes or no.
+You: Yes
+```
+
+Supported automation voice actions:
+
+```text
+List automations
+Run automation 1
+Pause automation 1
+Enable automation 1
+Delete automation 1
+```
+
+Automation actions can also be referenced by a unique task ID prefix or unique text from the action.
+
+Recovery commands:
+
+```text
+Yes
+No
+Cancel
+Repeat
+What did you hear?
+```
+
+Read-only/intelligence shortcuts do not require confirmation:
+
+```text
+Gmail summary
+Research <topic>
+GitHub summary
+Gmail status
+```
+
+After asking for confirmation, the system automatically opens a short local Whisper confirmation window, so you do not need to repeat the wake phrase before saying Yes or No.
+
+---
+
 ## v4.4 — Hands-Free Voice Command Center
 
 v4.4 adds deterministic local voice controls on top of the existing Cirilla/Geralt wake system.
@@ -180,7 +229,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v4.4 — Hands-Free Voice Command Center**
+**v4.5 — Voice Actions + Smart Confirmation**
 
 ### v3.0 adds
 
@@ -356,7 +405,8 @@ Ollama / qwen3:1.7b
 - v4.1 — Local Faster-Whisper STT ✅
 - v4.2 — Wake Word Mode ✅
 - v4.3 — Cirilla / Geralt Dual Voice Personas ✅
-- **v4.4 — Hands-Free Voice Command Center ✅**
+- v4.4 — Hands-Free Voice Command Center ✅
+- **v4.5 — Voice Actions + Smart Confirmation ✅**
 
 ## Author
 
