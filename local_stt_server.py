@@ -50,7 +50,7 @@ MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(
     title="Masum Local STT",
-    version="4.4.0",
+    version="4.5.0",
     docs_url=None,
     redoc_url=None,
 )
@@ -337,7 +337,7 @@ async def wake_detect(
 
 if __name__ == "__main__":
     print("=" * 64)
-    print("🎙️ MASUM LOCAL STT v4.4 — DUAL VOICE + COMMAND CENTER")
+    print("🎙️ MASUM LOCAL STT v4.5 — DUAL VOICE + SMART CONFIRMATION")
     print(f"Service : http://{HOST}:{PORT}")
     print(f"STT     : {MODEL_NAME}")
     print(f"Wake    : {WAKE_MODEL_NAME} | Cirilla + Geralt")
