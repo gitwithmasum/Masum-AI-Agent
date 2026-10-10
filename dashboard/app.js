@@ -1,4 +1,4 @@
-const state = { agents: [], status: null };
+const state = { agents: [], status: null, automations: [] };
 
 const $ = (sel) => document.querySelector(sel);
 const $$ = (sel) => [...document.querySelectorAll(sel)];
@@ -152,8 +152,9 @@ function taskElement(t){
 async function loadAutomations(){
   try{
     const d=await api("/api/automations"), list=$("#automationList");list.innerHTML="";
-    if(!(d.tasks||[]).length){list.textContent="No automation tasks configured.";return;}
-    d.tasks.forEach(t=>list.appendChild(taskElement(t)));
+    state.automations=d.tasks||[];
+    if(!state.automations.length){list.textContent="No automation tasks configured.";return;}
+    state.automations.forEach(t=>list.appendChild(taskElement(t)));
   }catch(e){toast(e.message,true);}
 }
 $("#refreshAutomations").addEventListener("click",loadAutomations);
@@ -196,7 +197,7 @@ $("#refreshReports").addEventListener("click",loadReports);
 Promise.all([loadStatus(),loadAgents(),loadAutomations(),loadReports()]);
 setInterval(loadStatus,30000);
 
-// v4.4 Hands-Free Voice Command Center — Cirilla / Geralt
+// v4.5 Voice Actions + Smart Confirmation — Cirilla / Geralt
 (function(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceBtn = document.querySelector("#voiceBtn");
@@ -219,6 +220,7 @@ setInterval(loadStatus,30000);
 
   const WAKE_CHUNK_MS = 3500;
   const COMMAND_RECORD_MS = 7000;
+  const CONFIRM_RECORD_MS = 5000;
 
   const PERSONAS = {
     cirilla: {
@@ -274,6 +276,9 @@ setInterval(loadStatus,30000);
   let wakeListening = false;
   let wakePausedForCommand = false;
   let commandStopTimer = null;
+  let pendingVoiceAction = null;
+  let lastHeardText = "";
+  let lastVoicePrompt = "";
 
   function profile(){
     return PERSONAS[persona.value] || PERSONAS.cirilla;
@@ -291,7 +296,191 @@ setInterval(loadStatus,30000);
       .trim();
   }
 
+  function parseNumberReference(value){
+    const map = {
+      "one":1,"first":1,"এক":1,"১":1,
+      "two":2,"second":2,"দুই":2,"২":2,
+      "three":3,"third":3,"তিন":3,"৩":3,
+      "four":4,"fourth":4,"চার":4,"৪":4,
+      "five":5,"fifth":5,"পাঁচ":5,"৫":5,
+      "six":6,"sixth":6,"ছয়":6,"ছয়":6,"৬":6,
+      "seven":7,"seventh":7,"সাত":7,"৭":7,
+      "eight":8,"eighth":8,"আট":8,"৮":8,
+      "nine":9,"ninth":9,"নয়":9,"নয়":9,"৯":9,
+      "ten":10,"tenth":10,"দশ":10,"১০":10
+    };
+    const key = String(value || "").trim().toLowerCase();
+    if(Object.prototype.hasOwnProperty.call(map,key)) return map[key];
+    if(/^\d+$/.test(key)) return Number(key);
+    return null;
+  }
+
+  function resolveAutomation(reference){
+    const ref = String(reference || "").trim();
+    const index = parseNumberReference(ref);
+
+    if(index && index >= 1 && index <= state.automations.length){
+      return {task:state.automations[index-1], index:index};
+    }
+
+    const lowered = ref.toLowerCase();
+    const matches = state.automations
+      .map(function(task,i){ return {task:task,index:i+1}; })
+      .filter(function(item){
+        return String(item.task.id || "").toLowerCase().startsWith(lowered) ||
+          String(item.task.action || "").toLowerCase().includes(lowered);
+      });
+
+    return matches.length === 1 ? matches[0] : null;
+  }
+
+  function shortTask(task){
+    const value = String(task && task.action || "automation").trim();
+    return value.length > 72 ? value.slice(0,69) + "..." : value;
+  }
+
+  function voiceAgentPrompt(agentName,prompt){
+    setView("chat");
+    const selector = document.querySelector("#agentSelect");
+    if(selector) selector.value = agentName;
+    wakePausedForCommand = true;
+    input.value = prompt;
+    setState("VOICE ACTION","processing","Routing to " + agentName + " agent…");
+    setTimeout(function(){ form.requestSubmit(); },120);
+  }
+
+  function speakConfirmationPrompt(message){
+    lastVoicePrompt = message;
+    stopWakeListener();
+    wakePausedForCommand = true;
+    setState("CONFIRM","listening",message);
+    toast(message);
+
+    const startConfirmationCapture = function(){
+      setTimeout(function(){
+        startLocal(CONFIRM_RECORD_MS);
+      },300);
+    };
+
+    if(!("speechSynthesis" in window) || !speakReplies.checked){
+      startConfirmationCapture();
+      return;
+    }
+
+    window.speechSynthesis.cancel();
+    const p = profile();
+    const utter = new SpeechSynthesisUtterance(message);
+    utter.lang = lang.value;
+    utter.pitch = p.pitch;
+    utter.rate = p.rate;
+    const selectedVoice = choosePersonaVoice();
+    if(selectedVoice) utter.voice = selectedVoice;
+    utter.onend = startConfirmationCapture;
+    utter.onerror = startConfirmationCapture;
+    window.speechSynthesis.speak(utter);
+  }
+
+  function queueAutomationConfirmation(op,reference){
+    const resolved = resolveAutomation(reference);
+    if(!resolved){
+      commandFeedback("I could not uniquely find that automation. Say list automations first.");
+      return true;
+    }
+
+    const labels = {
+      run:"run",
+      disable:"pause",
+      enable:"enable",
+      delete:"delete"
+    };
+    const verb = labels[op] || op;
+    const prompt = "Confirm " + verb + " automation " + resolved.index +
+      ": " + shortTask(resolved.task) + "? Say yes or no.";
+
+    pendingVoiceAction = {
+      kind:"automation",
+      op:op,
+      task:resolved.task,
+      index:resolved.index,
+      prompt:prompt
+    };
+    setView("automation");
+    speakConfirmationPrompt(prompt);
+    return true;
+  }
+
+  async function executePendingVoiceAction(action){
+    if(!action) return;
+
+    try{
+      let result;
+      if(action.op === "delete"){
+        result = await api(
+          "/api/automations/" + encodeURIComponent(action.task.id),
+          {method:"DELETE"}
+        );
+      }else{
+        result = await api(
+          "/api/automations/" + encodeURIComponent(action.task.id) + "/" + action.op,
+          {method:"POST"}
+        );
+      }
+
+      await loadAutomations();
+      await loadStatus();
+
+      const labels = {
+        run:"ran",
+        disable:"paused",
+        enable:"enabled",
+        delete:"deleted"
+      };
+      commandFeedback(
+        "Automation " + action.index + " " + (labels[action.op] || "updated") + "."
+      );
+      return result;
+    }catch(error){
+      toast(error.message,true);
+      setState("ACTION ERROR","error",error.message);
+      commandFeedback("The automation action failed.");
+    }
+  }
+
+  function handlePendingConfirmation(text){
+    if(!pendingVoiceAction) return false;
+
+    const cmd = normalizedCommand(text);
+    const yes = /^(yes|yeah|yep|confirm|confirmed|do it|go ahead|okay|ok|হ্যাঁ|হ্যা|জি|করো|কনফার্ম)$/.test(cmd);
+    const no = /^(no|nope|cancel|stop|don t|do not|না|বাদ দাও|ক্যানসেল|থামো)$/.test(cmd);
+    const repeat = /^(repeat|repeat that|say again|again|আবার বলো)$/.test(cmd);
+
+    if(yes){
+      const action = pendingVoiceAction;
+      pendingVoiceAction = null;
+      lastVoicePrompt = "";
+      setState("EXECUTING","processing","Confirmed. Executing action…");
+      executePendingVoiceAction(action);
+      return true;
+    }
+
+    if(no){
+      pendingVoiceAction = null;
+      lastVoicePrompt = "";
+      commandFeedback("Cancelled.");
+      return true;
+    }
+
+    if(repeat){
+      speakConfirmationPrompt(pendingVoiceAction.prompt);
+      return true;
+    }
+
+    speakConfirmationPrompt("Please say yes or no. " + pendingVoiceAction.prompt);
+    return true;
+  }
+
   function commandFeedback(message){
+    lastVoicePrompt = message;
     toast(message);
     setState("VOICE COMMAND","ready",message);
     if(speakReplies.checked){
@@ -303,6 +492,90 @@ setInterval(loadStatus,30000);
 
   function executeVoiceCommand(text){
     const cmd = normalizedCommand(text);
+
+    if(/^(cancel|cancel action|ক্যানসেল|বাদ দাও)$/.test(cmd)){
+      if(pendingVoiceAction){
+        pendingVoiceAction = null;
+        lastVoicePrompt = "";
+        commandFeedback("Cancelled.");
+      }else{
+        commandFeedback("Nothing is waiting for confirmation.");
+      }
+      return true;
+    }
+
+    if(/^(repeat|repeat that|say again|আবার বলো)$/.test(cmd)){
+      if(pendingVoiceAction){
+        speakConfirmationPrompt(pendingVoiceAction.prompt);
+      }else{
+        commandFeedback(lastVoicePrompt || "There is nothing to repeat yet.");
+      }
+      return true;
+    }
+
+    if(/^(what did you hear|what did you hear me say|কি শুনেছ|কি শুনলে)$/.test(cmd)){
+      commandFeedback(
+        lastHeardText
+          ? "I heard: " + lastHeardText
+          : "I have not captured a previous command yet."
+      );
+      return true;
+    }
+
+    if(/^(list automations|show automations|automation list|অটোমেশন লিস্ট|অটোমেশন দেখাও)$/.test(cmd)){
+      setView("automation");
+      if(!state.automations.length){
+        commandFeedback("You have no automation tasks.");
+      }else{
+        const preview = state.automations.slice(0,5).map(function(task,i){
+          return (i+1) + ": " + shortTask(task);
+        }).join(". ");
+        commandFeedback(
+          "You have " + state.automations.length + " automations. " + preview
+        );
+      }
+      return true;
+    }
+
+    const automationMatch = cmd.match(
+      /^(run|execute|start|pause|disable|enable|delete|remove) automation (.+)$/
+    );
+    if(automationMatch){
+      const opMap = {
+        run:"run",
+        execute:"run",
+        start:"run",
+        pause:"disable",
+        disable:"disable",
+        enable:"enable",
+        delete:"delete",
+        remove:"delete"
+      };
+      return queueAutomationConfirmation(
+        opMap[automationMatch[1]],
+        automationMatch[2]
+      );
+    }
+
+    if(/^(gmail summary|summarize gmail|summarize my gmail|unread gmail summary)$/.test(cmd)){
+      voiceAgentPrompt(
+        "gmail",
+        "Summarize my unread Gmail messages. Highlight important items and anything that needs my attention."
+      );
+      return true;
+    }
+
+    const researchMatch = cmd.match(
+      /^(?:research|research about|find research on|search papers on) (.+)$/
+    );
+    if(researchMatch){
+      voiceAgentPrompt(
+        "research",
+        "Research " + researchMatch[1] +
+        ". Summarize the most useful findings and include sources."
+      );
+      return true;
+    }
 
     if(/^(switch to )?(geralt|male)( mode| voice)?$/.test(cmd) || /^(গেরাল্ট|মেল)( মোড| ভয়েস| ভয়েস)?$/.test(cmd)){
       persona.value = "geralt";
@@ -412,6 +685,18 @@ setInterval(loadStatus,30000);
   }
 
   function handleRecognizedCommand(text){
+    if(pendingVoiceAction){
+      input.value = "";
+      return handlePendingConfirmation(text);
+    }
+
+    const cmd = normalizedCommand(text);
+    const recovery = /^(what did you hear|what did you hear me say|কি শুনেছ|কি শুনলে)$/.test(cmd);
+
+    if(!recovery){
+      lastHeardText = String(text || "").trim();
+    }
+
     if(!executeVoiceCommand(text)) return false;
     input.value = "";
     return true;
