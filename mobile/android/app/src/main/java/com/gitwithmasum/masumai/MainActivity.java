@@ -295,6 +295,47 @@ public class MainActivity extends Activity {
         return enabled.contains(component);
     }
 
+    private SharedPreferences mobilePrefs() {
+        return getSharedPreferences(
+            "masum_mobile",
+            MODE_PRIVATE
+        );
+    }
+
+    private String voiceLanguageMode() {
+        return mobilePrefs().getString(
+            "voice_language",
+            "auto"
+        );
+    }
+
+    private String languageButtonText() {
+        String mode = voiceLanguageMode();
+        if ("bn".equals(mode)) {
+            return "VOICE LANGUAGE: বাংলা";
+        }
+        if ("en".equals(mode)) {
+            return "VOICE LANGUAGE: ENGLISH";
+        }
+        return "VOICE LANGUAGE: AUTO";
+    }
+
+    private void cycleVoiceLanguage() {
+        String mode = voiceLanguageMode();
+        String next = "auto";
+
+        if ("auto".equals(mode)) {
+            next = "bn";
+        } else if ("bn".equals(mode)) {
+            next = "en";
+        }
+
+        mobilePrefs()
+            .edit()
+            .putString("voice_language", next)
+            .apply();
+    }
+
     private void updateStatus() {
         boolean mic = checkSelfPermission(Manifest.permission.RECORD_AUDIO)
             == PackageManager.PERMISSION_GRANTED;
