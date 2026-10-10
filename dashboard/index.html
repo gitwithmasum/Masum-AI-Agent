@@ -19,7 +19,7 @@
         <div class="brand-mark"><img src="/static/masum-ai-agent-logo.webp" alt="Masum AI Agent logo"></div>
         <div>
           <strong>MASUM AI</strong>
-          <span>AGENT OS // v4.2</span>
+          <span>AGENT OS // v4.3</span>
         </div>
       </div>
 
@@ -126,6 +126,10 @@
                   <option value="local">Local Whisper</option>
                   <option value="browser">Browser Speech</option>
                 </select>
+                <select id="voicePersona" aria-label="Voice persona">
+                  <option value="cirilla">Female — Cirilla</option>
+                  <option value="geralt">Male — Geralt</option>
+                </select>
               </div>
             </div>
 
@@ -154,7 +158,7 @@
               <label class="toggle wake-toggle">
                 <input type="checkbox" id="wakeMode">
                 <span></span>
-                Wake: Cirilla
+                Wake: <strong id="wakePersonaLabel">Cirilla</strong>
               </label>
               <button class="secondary" id="stopSpeechBtn" type="button">STOP VOICE</button>
             </div>

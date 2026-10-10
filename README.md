@@ -1,5 +1,38 @@
 # Masum AI Agent
 
+## v4.3 — Dual Voice Personas
+
+Masum AI Agent now has two selectable voice personas:
+
+- **Female — Cirilla**
+- **Male — Geralt**
+
+The selected persona controls:
+
+- spoken reply profile,
+- wake word,
+- wake status badge,
+- wake acknowledgment,
+- saved browser voice preference.
+
+Wake phrases:
+
+```text
+Female mode:
+Hey Cirilla
+Cirilla
+
+Male mode:
+Hey Geralt
+Geralt
+```
+
+The dashboard uses the browser/Windows voices that are actually installed on the computer. It scores available voices by language and common male/female voice-name hints, then applies persona-specific pitch/rate tuning. Because browser speech APIs do not expose a guaranteed gender field, the exact voice can vary by Windows/browser.
+
+Wake detection remains local through Faster-Whisper.
+
+---
+
 ## v4.2 — Cirilla Wake Mode
 
 The project brand remains **Masum AI Agent**, while the hands-free voice persona/wake name is **Cirilla**.

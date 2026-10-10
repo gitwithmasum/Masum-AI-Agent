@@ -38,7 +38,7 @@ AUTO_OPEN = os.getenv(
 
 app = FastAPI(
     title="Masum AI Agent Dashboard",
-    version="4.2.0",
+    version="4.3.0",
     docs_url=None,
     redoc_url=None,
 )
@@ -230,7 +230,7 @@ async def api_status():
     local_stt = await asyncio.to_thread(stt_status_data)
 
     return {
-        "version": "v4.2",
+        "version": "v4.3",
         "name": "Masum AI Agent",
         "ollama": {
             "online": ollama_ok,
@@ -356,7 +356,7 @@ async def api_stt_transcribe(request: Request, language: str = "bn"):
     return data or {}
 
 @app.post("/api/stt/wake")
-async def api_stt_wake(request: Request, language: str = "auto"):
+async def api_stt_wake(request: Request, language: str = "auto", persona: str = "cirilla"):
     audio = await request.body()
     if not audio:
         raise HTTPException(status_code=400, detail="Audio body is empty.")
@@ -367,8 +367,15 @@ async def api_stt_wake(request: Request, language: str = "auto"):
     if safe_language not in {"bn", "en", "auto"}:
         safe_language = "auto"
 
+    safe_persona = persona.strip().lower()
+    if safe_persona not in {"cirilla", "geralt"}:
+        safe_persona = "cirilla"
+
     path = "/wake-detect?" + urllib.parse.urlencode(
-        {"language": safe_language}
+        {
+            "language": safe_language,
+            "persona": safe_persona,
+        }
     )
     content_type = request.headers.get(
         "content-type",
@@ -580,7 +587,7 @@ if __name__ == "__main__":
         ).start()
 
     print("=" * 64)
-    print("🤖 MASUM AI AGENT v4.2 — CIRILLA WAKE MODE")
+    print("🤖 MASUM AI AGENT v4.3 — CIRILLA + GERALT VOICE PERSONAS")
     print(f"Dashboard: http://{HOST}:{PORT}")
     print(f"Local STT: {STT_SERVICE_URL}")
     print("Security : local-only is recommended (127.0.0.1)")

@@ -289,3 +289,13 @@ select:focus,input:focus,textarea:focus{border-color:var(--line-strong);box-shad
 .wake-toggle{
   white-space:nowrap;
 }
+
+
+/* v4.3 Dual Voice Persona */
+#voicePersona{
+  min-width:160px;
+}
+#wakePersonaLabel{
+  font-weight:700;
+  color:var(--cyan);
+}

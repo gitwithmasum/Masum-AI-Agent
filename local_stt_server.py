@@ -26,12 +26,22 @@ MAX_AUDIO_BYTES = int(
 )
 BEAM_SIZE = int(os.getenv("LOCAL_STT_BEAM_SIZE", "5"))
 WAKE_BEAM_SIZE = int(os.getenv("LOCAL_WAKE_BEAM_SIZE", "1"))
-WAKE_PHRASES = [
+CIRILLA_WAKE_PHRASES = [
     item.strip()
     for item in os.getenv(
-        "LOCAL_WAKE_PHRASES",
+        "LOCAL_CIRILLA_WAKE_PHRASES",
         "hey cirilla,cirilla,hey sirilla,sirilla,cirila,"
         "সিরিলা,হেই সিরিলা",
+    ).split(",")
+    if item.strip()
+]
+
+GERALT_WAKE_PHRASES = [
+    item.strip()
+    for item in os.getenv(
+        "LOCAL_GERALT_WAKE_PHRASES",
+        "hey geralt,geralt,hey gerald,gerald,"
+        "গেরাল্ট,হেই গেরাল্ট",
     ).split(",")
     if item.strip()
 ]
@@ -40,7 +50,7 @@ MODEL_DIR.mkdir(parents=True, exist_ok=True)
 
 app = FastAPI(
     title="Masum Local STT",
-    version="4.2.0",
+    version="4.3.0",
     docs_url=None,
     redoc_url=None,
 )
@@ -147,9 +157,20 @@ def normalize_phrase(value: str) -> str:
     return re.sub(r"\s+", " ", value).strip()
 
 
-def find_wake_phrase(text: str) -> str | None:
+def wake_phrases_for(persona: str) -> list[str]:
+    return (
+        GERALT_WAKE_PHRASES
+        if persona == "geralt"
+        else CIRILLA_WAKE_PHRASES
+    )
+
+
+def find_wake_phrase(
+    text: str,
+    persona: str,
+) -> str | None:
     normalized = normalize_phrase(text)
-    for phrase in WAKE_PHRASES:
+    for phrase in wake_phrases_for(persona):
         if normalize_phrase(phrase) in normalized:
             return phrase
     return None
@@ -158,6 +179,7 @@ def find_wake_phrase(text: str) -> str | None:
 def wake_transcribe_file(
     file_path: str,
     language: str,
+    persona: str,
 ) -> dict:
     model = get_wake_model()
     language_arg = None if language == "auto" else language
@@ -171,7 +193,7 @@ def wake_transcribe_file(
     )
 
     text = collect_text(segments)
-    matched = find_wake_phrase(text)
+    matched = find_wake_phrase(text, persona)
 
     return {
         "text": text,
@@ -184,6 +206,7 @@ def wake_transcribe_file(
             None,
         ),
         "model": WAKE_MODEL_NAME,
+        "persona": persona,
     }
 
 
@@ -224,8 +247,16 @@ async def status():
         "loaded": _model is not None,
         "wake_model": WAKE_MODEL_NAME,
         "wake_loaded": _wake_model is not None,
-        "wake_name": "Cirilla",
-        "wake_phrases": WAKE_PHRASES,
+        "voice_personas": {
+            "cirilla": {
+                "label": "Female — Cirilla",
+                "wake_phrases": CIRILLA_WAKE_PHRASES,
+            },
+            "geralt": {
+                "label": "Male — Geralt",
+                "wake_phrases": GERALT_WAKE_PHRASES,
+            },
+        },
         "device": DEVICE,
         "compute_type": COMPUTE_TYPE,
         "model_dir": str(MODEL_DIR),
@@ -240,6 +271,10 @@ async def transcribe(
     language = language.strip().lower()
     if language not in {"bn", "en", "auto"}:
         language = "auto"
+
+    persona = persona.strip().lower()
+    if persona not in {"cirilla", "geralt"}:
+        persona = "cirilla"
 
     path = None
     try:
@@ -269,6 +304,7 @@ async def transcribe(
 async def wake_detect(
     request: Request,
     language: str = "auto",
+    persona: str = "cirilla",
 ):
     language = language.strip().lower()
     if language not in {"bn", "en", "auto"}:
@@ -282,6 +318,7 @@ async def wake_detect(
                 wake_transcribe_file,
                 path,
                 language,
+                persona,
             )
     except HTTPException:
         raise
@@ -300,10 +337,10 @@ async def wake_detect(
 
 if __name__ == "__main__":
     print("=" * 64)
-    print("🎙️ MASUM LOCAL STT v4.2 — CIRILLA WAKE MODE")
+    print("🎙️ MASUM LOCAL STT v4.3 — DUAL VOICE PERSONAS")
     print(f"Service : http://{HOST}:{PORT}")
     print(f"STT     : {MODEL_NAME}")
-    print(f"Wake    : {WAKE_MODEL_NAME} | Cirilla")
+    print(f"Wake    : {WAKE_MODEL_NAME} | Cirilla + Geralt")
     print(f"Device  : {DEVICE} / {COMPUTE_TYPE}")
     print(f"Cache   : {MODEL_DIR}")
     print("Wake Mode is opt-in from the dashboard.")
