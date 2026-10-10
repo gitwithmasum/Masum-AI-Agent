@@ -38,7 +38,7 @@ AUTO_OPEN = os.getenv(
 
 app = FastAPI(
     title="Masum AI Agent Dashboard",
-    version="4.3.0",
+    version="4.4.0",
     docs_url=None,
     redoc_url=None,
 )
@@ -230,7 +230,7 @@ async def api_status():
     local_stt = await asyncio.to_thread(stt_status_data)
 
     return {
-        "version": "v4.3",
+        "version": "v4.4",
         "name": "Masum AI Agent",
         "ollama": {
             "online": ollama_ok,
@@ -587,7 +587,7 @@ if __name__ == "__main__":
         ).start()
 
     print("=" * 64)
-    print("🤖 MASUM AI AGENT v4.3 — CIRILLA + GERALT VOICE PERSONAS")
+    print("🤖 MASUM AI AGENT v4.4 — HANDS-FREE VOICE COMMAND CENTER")
     print(f"Dashboard: http://{HOST}:{PORT}")
     print(f"Local STT: {STT_SERVICE_URL}")
     print("Security : local-only is recommended (127.0.0.1)")
