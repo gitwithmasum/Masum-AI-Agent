@@ -93,7 +93,7 @@ def get_wake_model() -> WhisperModel:
     with _model_lock:
         if _wake_model is None:
             print(
-                f"Loading Cirilla wake model '{WAKE_MODEL_NAME}' "
+                f"Loading voice-persona wake model '{WAKE_MODEL_NAME}' "
                 f"on {DEVICE}/{COMPUTE_TYPE}..."
             )
             _wake_model = build_model(WAKE_MODEL_NAME)
@@ -272,10 +272,6 @@ async def transcribe(
     if language not in {"bn", "en", "auto"}:
         language = "auto"
 
-    persona = persona.strip().lower()
-    if persona not in {"cirilla", "geralt"}:
-        persona = "cirilla"
-
     path = None
     try:
         path = await save_request_audio(request)
@@ -309,6 +305,10 @@ async def wake_detect(
     language = language.strip().lower()
     if language not in {"bn", "en", "auto"}:
         language = "auto"
+
+    persona = persona.strip().lower()
+    if persona not in {"cirilla", "geralt"}:
+        persona = "cirilla"
 
     path = None
     try:
