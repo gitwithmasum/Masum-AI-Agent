@@ -1,5 +1,29 @@
 # Masum AI Agent
 
+## v5.1 — Universal Call Voice Control
+
+Android mobile companion now supports explicit voice control for incoming calls:
+
+```text
+Hey Cirilla, answer the call
+Hey Cirilla, reject the call
+Hey Cirilla, who is calling?
+Hey Cirilla, answer WhatsApp call
+Hey Cirilla, reject WhatsApp call
+Hey Cirilla, answer Messenger call
+Hey Cirilla, reject Messenger call
+```
+
+Normal SIM calls use Android Telecom with user-granted phone permissions. WhatsApp and Messenger use Android Notification Access and only trigger an Answer / Decline PendingIntent that the incoming-call notification actually exposes.
+
+No call is auto-answered. v5.1 requires the user's explicit voice command and does not guess unknown notification buttons.
+
+Android source: `mobile/android/`
+
+GitHub Actions artifact: `Masum-AI-Agent-Android-APK-v5.1`
+
+---
+
 ## v4.6 — Install-and-Run Windows Companion
 
 The Windows companion is designed for this end-user flow:
@@ -140,316 +164,11 @@ The Voice Commands panel inside Neural Chat shows the currently supported shortc
 
 ---
 
-## v4.3 — Dual Voice Personas
-
-Masum AI Agent now has two selectable voice personas:
-
-- **Female — Cirilla**
-- **Male — Geralt**
-
-The selected persona controls:
-
-- spoken reply profile,
-- wake word,
-- wake status badge,
-- wake acknowledgment,
-- saved browser voice preference.
-
-Wake phrases:
-
-```text
-Female mode:
-Hey Cirilla
-Cirilla
-
-Male mode:
-Hey Geralt
-Geralt
-```
-
-The dashboard uses the browser/Windows voices that are actually installed on the computer. It scores available voices by language and common male/female voice-name hints, then applies persona-specific pitch/rate tuning. Because browser speech APIs do not expose a guaranteed gender field, the exact voice can vary by Windows/browser.
-
-Wake detection remains local through Faster-Whisper.
-
----
-
-## v4.2 — Cirilla Wake Mode
-
-The project brand remains **Masum AI Agent**, while the hands-free voice persona/wake name is **Cirilla**.
-
-Wake phrases:
-
-```text
-Hey Cirilla
-Cirilla
-সিরিলা
-হেই সিরিলা
-```
-
-Wake Mode is **OFF by default**. Turn on **Wake: Cirilla** in Neural Chat when you want continuous local listening.
-
-Examples:
-
-```text
-Hey Cirilla, আমার GitHub recent commit দেখাও
-Cirilla, find recent AI agent papers
-```
-
-If you say only `Hey Cirilla`, Cirilla wakes and automatically records your next command for about 7 seconds.
-
-Wake detection uses the local Faster-Whisper service. A lightweight `tiny` model is used for wake detection, while the `small` multilingual model remains the main speech-to-text model.
-
-### Run v4.2
-
-Terminal 1:
-
-```powershell
-.\.venv-stt\Scripts\python.exe local_stt_server.py
-```
-
-Terminal 2:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-python dashboard.py
-```
-
-Then open Neural Chat, select **Local Whisper**, and enable **Wake: Cirilla**.
-
-Wake Mode continuously samples microphone audio locally while enabled, so it uses more CPU than manual MIC mode. Turn it off when you do not need hands-free listening.
-
----
-
-<p align="center"><img src="dashboard/masum-ai-agent-logo.webp" alt="Masum AI Agent Logo" width="220"></p>
-
-## v4.1 — Fully Local Speech-to-Text
-
-v4.1 adds a local Faster-Whisper speech-to-text service for better Bangla/English voice input. Browser Speech remains available as a fallback.
-
-### Setup
-
-```powershell
-py -0p
-```
-
-If Python 3.12 is missing:
-
-```powershell
-winget install -e --id Python.Python.3.12
-```
-
-Then:
-
-```powershell
-.\setup_local_stt.ps1
-```
-
-Start Local Whisper in Terminal 1:
-
-```powershell
-.\.venv-stt\Scripts\python.exe local_stt_server.py
-```
-
-Start the dashboard in Terminal 2:
-
-```powershell
-.\.venv\Scripts\Activate.ps1
-python dashboard.py
-```
-
-In Neural Chat select **Local Whisper**. Click MIC once to start recording and click MIC again when finished. The multilingual `small` model is downloaded once into `data/stt_models`, then reused locally.
-
-The main Python 3.14 environment stays separate from the STT Python 3.12 environment.
-
----
-
-## v4.0 — Voice Agent
-
-v4.0 adds microphone input and spoken replies to the local Web Dashboard while preserving all v3.0 features.
-
-Voice features:
-- Bangla (bn-BD), English US and English UK recognition modes
-- Voice Link / MIC controls inside Neural Chat
-- optional automatic submit after recognition
-- browser text-to-speech for AI replies
-- Ctrl + Space microphone shortcut
-- browser-saved voice preferences
-- graceful typed-chat fallback
-
-Privacy: Ollama/agent processing stays on the configured AI stack, but browser speech recognition may use an online speech service depending on the browser. Do not assume speech-to-text is fully offline.
-
-Update and run from PowerShell:
-    git pull origin main
-    .\.venv\Scripts\Activate.ps1
-    pip install -r requirements.txt
-    python dashboard.py
-
-Then open http://127.0.0.1:8765, enter Neural Chat, allow microphone permission, choose Bangla or English, and click MIC.
-
----
-
-Local-first personal AI system with Ollama, multi-agent routing, automation, Gmail intelligence, research, GitHub inspection, optional Supabase and a futuristic local web dashboard.
+Local-first personal AI system with Ollama, multi-agent routing, automation, Gmail intelligence, research, GitHub inspection, optional Supabase, Windows desktop companion and Android voice companion.
 
 ## Current version
 
-**v4.6 — Install-and-Run Windows Companion**
-
-### v3.0 adds
-
-- Futuristic responsive browser control center
-- Multi-agent chat with Auto Router
-- Manual General / Research / Developer / Gmail / Data selection
-- Team Review mode
-- Live Ollama, Gmail, automation and research status
-- Automation create / run / pause / resume / delete controls
-- Research report browser and preview
-- Gmail status and GitHub quick diagnostics
-- Mobile-responsive layout
-- Dashboard starts its own automation scheduler
-- Local-only network binding by default
-
-The original CLI remains available through `python main.py`.
-
-## Update local copy
-
-```powershell
-git pull origin main
-.\.venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-```
-
-## Dashboard configuration
-
-Add to local `.env`:
-
-```env
-DASHBOARD_HOST=127.0.0.1
-DASHBOARD_PORT=8765
-DASHBOARD_AUTO_OPEN=true
-```
-
-Keep `DASHBOARD_HOST=127.0.0.1` unless you intentionally add authentication and secure network exposure.
-
-## Start Web Dashboard
-
-Make sure Ollama is running, then:
-
-```powershell
-python dashboard.py
-```
-
-The browser opens automatically at:
-
-```text
-http://127.0.0.1:8765
-```
-
-If auto-open is disabled, open that address manually.
-
-## Dashboard areas
-
-### Overview
-
-Shows:
-
-- Ollama/local model status
-- Gmail authorization state
-- Active automation count
-- Saved research-report count
-- agent matrix
-- Gmail and GitHub quick diagnostics
-
-### Neural Chat
-
-Use:
-
-- Auto Router
-- General Agent
-- Research Agent
-- Developer Agent
-- Gmail Agent
-- Data Agent
-- Team Review
-
-Normal multi-agent routing and persistent conversation memory are reused from the CLI core.
-
-### Automation Center
-
-Create:
-
-- daily tasks,
-- interval tasks,
-- one-time tasks.
-
-From the dashboard you can also run, pause, enable and delete tasks.
-
-Automation state remains stored locally in:
-
-```text
-data/automations.json
-data/automation_log.jsonl
-```
-
-### Research Vault
-
-Browse and preview Markdown reports already created in:
-
-```text
-research_reports/
-```
-
-## Security model
-
-The dashboard has **no public-user authentication in v3.0**. Therefore:
-
-- default host is `127.0.0.1`,
-- do not expose port 8765 directly to the public internet,
-- Gmail remains read-only,
-- GitHub agent tools remain read-only,
-- Supabase remains read-only and optional,
-- automation still cannot execute arbitrary PowerShell/CMD/shell commands,
-- secrets remain local in `.env` and `secrets/`.
-
-## Run modes
-
-CLI:
-
-```powershell
-python main.py
-```
-
-Web Dashboard:
-
-```powershell
-python dashboard.py
-```
-
-You normally need only one of them running at a time. Both use the same local data files.
-
-## Main architecture
-
-```text
-Browser
-   |
-   v
-FastAPI Dashboard (localhost)
-   |
-   +-- Multi-Agent Router
-   |     +-- General
-   |     +-- Research
-   |     +-- Developer
-   |     +-- Gmail
-   |     +-- Data
-   |
-   +-- Automation Engine
-   +-- Research Vault
-   +-- Gmail Read-Only
-   +-- GitHub Read-Only
-   +-- Optional Supabase Read-Only
-   |
-   v
-Ollama / qwen3:1.7b
-```
+**v5.1 — Universal Call Voice Control**
 
 ## Roadmap
 
@@ -470,7 +189,9 @@ Ollama / qwen3:1.7b
 - v4.3 — Cirilla / Geralt Dual Voice Personas ✅
 - v4.4 — Hands-Free Voice Command Center ✅
 - v4.5 — Voice Actions + Smart Confirmation ✅
-- **v4.6 — Install-and-Run Windows Companion ✅**
+- v4.6 — Install-and-Run Windows Companion ✅
+- v5.0 — Android Cirilla / Geralt Companion ✅
+- **v5.1 — Universal Call Voice Control ✅**
 
 ## Author
 

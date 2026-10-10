@@ -46,11 +46,11 @@ jobs:
         shell: bash
         run: |
           mkdir -p mobile-apk
-          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk mobile-apk/Masum-AI-Agent-Mobile-v5.0.apk
+          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk mobile-apk/Masum-AI-Agent-Mobile-v5.1.apk
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: Masum-AI-Agent-Android-APK
-          path: mobile-apk/Masum-AI-Agent-Mobile-v5.0.apk
+          name: Masum-AI-Agent-Android-APK-v5.1
+          path: mobile-apk/Masum-AI-Agent-Mobile-v5.1.apk
           if-no-files-found: error

@@ -1,12 +1,17 @@
 package com.gitwithmasum.masumai;
 
+import android.Manifest;
 import android.accessibilityservice.AccessibilityService;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.media.AudioManager;
 import android.net.Uri;
+import android.os.Build;
 import android.provider.Settings;
 import android.speech.tts.TextToSpeech;
+import android.telecom.TelecomManager;
+import android.telephony.TelephonyManager;
 
 import java.util.Locale;
 import java.util.regex.Matcher;
@@ -50,6 +55,65 @@ public class VoiceCommandRouter {
         }
         if (cmd.contains("switch to cirilla") || cmd.equals("cirilla mode")) {
             speak("Cirilla mode active.");
+            return;
+        }
+
+        String callSource = callSource(cmd);
+
+        if (isWhoIsCalling(cmd)) {
+            CallNotificationService.Result result =
+                CallNotificationService.describe(callSource);
+            speak(result.message);
+            return;
+        }
+
+        if (isAnswerCall(cmd)) {
+            CallNotificationService.Result notificationResult =
+                CallNotificationService.answer(callSource);
+
+            if (notificationResult.handled) {
+                speak(notificationResult.message);
+                return;
+            }
+
+            if (callSource.equals("whatsapp") || callSource.equals("messenger")) {
+                speak(notificationResult.message);
+                return;
+            }
+
+            if (answerPhoneCall()) {
+                speak("Answering the phone call.");
+            } else {
+                speak(
+                    notificationResult.message +
+                    " For a SIM call, allow SIM Call Control in the Masum AI Agent app."
+                );
+            }
+            return;
+        }
+
+        if (isRejectCall(cmd)) {
+            CallNotificationService.Result notificationResult =
+                CallNotificationService.reject(callSource);
+
+            if (notificationResult.handled) {
+                speak(notificationResult.message);
+                return;
+            }
+
+            if (callSource.equals("whatsapp") || callSource.equals("messenger")) {
+                speak(notificationResult.message);
+                return;
+            }
+
+            if (rejectRingingPhoneCall()) {
+                speak("Rejecting the phone call.");
+            } else {
+                speak(
+                    notificationResult.message +
+                    " I did not end any active call."
+                );
+            }
             return;
         }
 
@@ -113,31 +177,50 @@ public class VoiceCommandRouter {
         }
 
         if (matches(cmd, "volume up", "increase volume")) {
-            audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_RAISE, AudioManager.FLAG_SHOW_UI);
+            audio.adjustStreamVolume(
+                AudioManager.STREAM_MUSIC,
+                AudioManager.ADJUST_RAISE,
+                AudioManager.FLAG_SHOW_UI
+            );
             speak("Volume up.");
             return;
         }
         if (matches(cmd, "volume down", "decrease volume")) {
-            audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_LOWER, AudioManager.FLAG_SHOW_UI);
+            audio.adjustStreamVolume(
+                AudioManager.STREAM_MUSIC,
+                AudioManager.ADJUST_LOWER,
+                AudioManager.FLAG_SHOW_UI
+            );
             speak("Volume down.");
             return;
         }
         if (matches(cmd, "mute", "mute volume", "volume mute")) {
-            audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_MUTE, AudioManager.FLAG_SHOW_UI);
+            audio.adjustStreamVolume(
+                AudioManager.STREAM_MUSIC,
+                AudioManager.ADJUST_MUTE,
+                AudioManager.FLAG_SHOW_UI
+            );
             speak("Muted.");
             return;
         }
         if (matches(cmd, "unmute", "unmute volume")) {
-            audio.adjustStreamVolume(AudioManager.STREAM_MUSIC, AudioManager.ADJUST_UNMUTE, AudioManager.FLAG_SHOW_UI);
+            audio.adjustStreamVolume(
+                AudioManager.STREAM_MUSIC,
+                AudioManager.ADJUST_UNMUTE,
+                AudioManager.FLAG_SHOW_UI
+            );
             speak("Unmuted.");
             return;
         }
 
-        CirillaAccessibilityService accessibility = CirillaAccessibilityService.getInstance();
+        CirillaAccessibilityService accessibility =
+            CirillaAccessibilityService.getInstance();
 
         if (matches(cmd, "go home", "home", "হোম")) {
             if (accessibility != null) {
-                accessibility.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME);
+                accessibility.performGlobalAction(
+                    AccessibilityService.GLOBAL_ACTION_HOME
+                );
                 speak("Home.");
             } else {
                 speak("Enable Accessibility Voice Control first.");
@@ -147,7 +230,9 @@ public class VoiceCommandRouter {
 
         if (matches(cmd, "go back", "back", "পিছনে যাও")) {
             if (accessibility != null) {
-                accessibility.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK);
+                accessibility.performGlobalAction(
+                    AccessibilityService.GLOBAL_ACTION_BACK
+                );
                 speak("Back.");
             } else {
                 speak("Enable Accessibility Voice Control first.");
@@ -157,7 +242,9 @@ public class VoiceCommandRouter {
 
         if (matches(cmd, "recent apps", "open recent apps")) {
             if (accessibility != null) {
-                accessibility.performGlobalAction(AccessibilityService.GLOBAL_ACTION_RECENTS);
+                accessibility.performGlobalAction(
+                    AccessibilityService.GLOBAL_ACTION_RECENTS
+                );
             } else {
                 speak("Enable Accessibility Voice Control first.");
             }
@@ -182,9 +269,13 @@ public class VoiceCommandRouter {
             return;
         }
 
-        Matcher click = Pattern.compile("^(?:click|tap|press)\\s+(.+)$").matcher(cmd);
+        Matcher click = Pattern
+            .compile("^(?:click|tap|press)\\s+(.+)$")
+            .matcher(cmd);
+
         if (click.find()) {
-            if (accessibility != null && accessibility.clickText(click.group(1))) {
+            if (accessibility != null &&
+                accessibility.clickText(click.group(1))) {
                 speak("Done.");
             } else {
                 speak("I could not find that control.");
@@ -192,20 +283,37 @@ public class VoiceCommandRouter {
             return;
         }
 
-        Matcher type = Pattern.compile("^(?:type|write)\\s+(.+)$", Pattern.CASE_INSENSITIVE).matcher(raw.trim());
+        Matcher type = Pattern
+            .compile(
+                "^(?:type|write)\\s+(.+)$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
         if (type.find()) {
-            if (accessibility != null && accessibility.typeText(type.group(1))) {
+            if (accessibility != null &&
+                accessibility.typeText(type.group(1))) {
                 speak("Typed.");
             } else {
-                speak("Focus a text field and enable Accessibility Voice Control first.");
+                speak(
+                    "Focus a text field and enable Accessibility Voice Control first."
+                );
             }
             return;
         }
 
-        Matcher dial = Pattern.compile("^(?:dial|call)\\s+([+0-9][0-9 -]{4,})$").matcher(cmd);
+        Matcher dial = Pattern
+            .compile("^(?:dial|call)\\s+([+0-9][0-9 -]{4,})$")
+            .matcher(cmd);
+
         if (dial.find()) {
-            String number = dial.group(1).replace(" ", "").replace("-", "");
-            Intent intent = new Intent(Intent.ACTION_DIAL, Uri.parse("tel:" + number));
+            String number = dial.group(1)
+                .replace(" ", "")
+                .replace("-", "");
+            Intent intent = new Intent(
+                Intent.ACTION_DIAL,
+                Uri.parse("tel:" + number)
+            );
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             safeStart(intent);
             speak("Opening the dialer. You can confirm the call.");
@@ -218,6 +326,106 @@ public class VoiceCommandRouter {
         );
     }
 
+    private boolean isAnswerCall(String cmd) {
+        return cmd.matches(
+            ".*\\b(answer|accept|receive|pick up)\\b.*\\bcall\\b.*"
+        ) || cmd.equals("answer") ||
+           cmd.equals("receive the call") ||
+           cmd.equals("কল রিসিভ করো") ||
+           cmd.equals("কল ধরো");
+    }
+
+    private boolean isRejectCall(String cmd) {
+        return cmd.matches(
+            ".*\\b(reject|decline|dismiss)\\b.*\\bcall\\b.*"
+        ) || cmd.equals("reject") ||
+           cmd.equals("decline") ||
+           cmd.equals("কল কেটে দাও") ||
+           cmd.equals("কল রিজেক্ট করো");
+    }
+
+    private boolean isWhoIsCalling(String cmd) {
+        return cmd.equals("who is calling") ||
+            cmd.equals("who's calling") ||
+            cmd.equals("who is calling me") ||
+            cmd.equals("caller name") ||
+            cmd.equals("কে কল করছে");
+    }
+
+    private String callSource(String cmd) {
+        if (cmd.contains("whatsapp")) return "whatsapp";
+        if (cmd.contains("messenger")) return "messenger";
+        if (cmd.contains("phone call") || cmd.contains("sim call")) {
+            return "phone";
+        }
+        return "any";
+    }
+
+    @SuppressWarnings("deprecation")
+    private boolean answerPhoneCall() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return false;
+        if (!hasPhoneControlPermissions()) return false;
+        if (!isPhoneRinging()) return false;
+
+        try {
+            TelecomManager telecom =
+                (TelecomManager) context.getSystemService(
+                    Context.TELECOM_SERVICE
+                );
+            if (telecom == null) return false;
+            telecom.acceptRingingCall();
+            return true;
+        } catch (SecurityException error) {
+            return false;
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    private boolean rejectRingingPhoneCall() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false;
+        if (!hasPhoneControlPermissions()) return false;
+        if (!isPhoneRinging()) return false;
+
+        try {
+            TelecomManager telecom =
+                (TelecomManager) context.getSystemService(
+                    Context.TELECOM_SERVICE
+                );
+            return telecom != null && telecom.endCall();
+        } catch (SecurityException error) {
+            return false;
+        }
+    }
+
+    private boolean isPhoneRinging() {
+        if (context.checkSelfPermission(
+            Manifest.permission.READ_PHONE_STATE
+        ) != PackageManager.PERMISSION_GRANTED) {
+            return false;
+        }
+
+        try {
+            TelephonyManager telephony =
+                (TelephonyManager) context.getSystemService(
+                    Context.TELEPHONY_SERVICE
+                );
+            return telephony != null &&
+                telephony.getCallState()
+                    == TelephonyManager.CALL_STATE_RINGING;
+        } catch (SecurityException error) {
+            return false;
+        }
+    }
+
+    private boolean hasPhoneControlPermissions() {
+        return context.checkSelfPermission(
+            Manifest.permission.ANSWER_PHONE_CALLS
+        ) == PackageManager.PERMISSION_GRANTED &&
+        context.checkSelfPermission(
+            Manifest.permission.READ_PHONE_STATE
+        ) == PackageManager.PERMISSION_GRANTED;
+    }
+
     private boolean matches(String value, String... options) {
         for (String option : options) {
             if (value.equals(option)) return true;
@@ -225,8 +433,14 @@ public class VoiceCommandRouter {
         return false;
     }
 
-    private void openPackageOrUrl(String packageName, String fallbackUrl) {
-        Intent launch = context.getPackageManager().getLaunchIntentForPackage(packageName);
+    private void openPackageOrUrl(
+        String packageName,
+        String fallbackUrl
+    ) {
+        Intent launch =
+            context.getPackageManager()
+                .getLaunchIntentForPackage(packageName);
+
         if (launch != null) {
             launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
             safeStart(launch);
@@ -236,7 +450,10 @@ public class VoiceCommandRouter {
     }
 
     private void openUrl(String url) {
-        Intent intent = new Intent(Intent.ACTION_VIEW, Uri.parse(url));
+        Intent intent = new Intent(
+            Intent.ACTION_VIEW,
+            Uri.parse(url)
+        );
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         safeStart(intent);
     }

@@ -20,6 +20,7 @@ import android.widget.TextView;
 
 public class MainActivity extends Activity {
     private static final int MIC_REQUEST = 41;
+    private static final int PHONE_REQUEST = 43;
     private TextView status;
 
     @Override
@@ -34,7 +35,7 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("MASUM AI AGENT\nMobile Companion v5.0");
+        title.setText("MASUM AI AGENT\nMobile Companion v5.1");
         title.setTextColor(Color.rgb(103, 232, 255));
         title.setTextSize(26);
         title.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -45,8 +46,10 @@ public class MainActivity extends Activity {
             "\nOne-time Android setup:\n" +
             "1. Allow microphone\n" +
             "2. Set Masum AI Agent as Default Assistant\n" +
-            "3. Optional: enable Accessibility Voice Control\n\n" +
-            "Then use Cirilla/Geralt voice commands."
+            "3. Allow phone call control for SIM calls\n" +
+            "4. Enable Notification Access for WhatsApp/Messenger calls\n" +
+            "5. Optional: enable Accessibility Voice Control\n\n" +
+            "Cirilla/Geralt never auto-answer calls. A call action only runs after your explicit voice command."
         );
         intro.setTextColor(Color.WHITE);
         intro.setTextSize(16);
@@ -66,7 +69,21 @@ public class MainActivity extends Activity {
         assistant.setOnClickListener(v -> requestAssistantRole());
         root.addView(assistant, matchWrap());
 
-        Button accessibility = button("3 — ENABLE ACCESSIBILITY VOICE CONTROL");
+        Button phone = button("3 — ALLOW SIM CALL CONTROL");
+        phone.setOnClickListener(v -> requestPhoneControl());
+        root.addView(phone, matchWrap());
+
+        Button notifications = button("4 — ENABLE WHATSAPP / MESSENGER CALL ACCESS");
+        notifications.setOnClickListener(v -> {
+            try {
+                startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
+            } catch (Exception error) {
+                startActivity(new Intent(Settings.ACTION_SETTINGS));
+            }
+        });
+        root.addView(notifications, matchWrap());
+
+        Button accessibility = button("5 — ENABLE ACCESSIBILITY VOICE CONTROL");
         accessibility.setOnClickListener(v -> startActivity(
             new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
         ));
@@ -84,20 +101,24 @@ public class MainActivity extends Activity {
 
         TextView commands = new TextView(this);
         commands.setText(
-            "\nVOICE EXAMPLES\n\n" +
+            "\nCALL VOICE EXAMPLES\n\n" +
+            "Hey Cirilla, answer the call\n" +
+            "Hey Cirilla, receive the call\n" +
+            "Hey Cirilla, reject the call\n" +
+            "Hey Cirilla, who is calling?\n" +
+            "Hey Cirilla, answer WhatsApp call\n" +
+            "Hey Cirilla, reject WhatsApp call\n" +
+            "Hey Cirilla, answer Messenger call\n" +
+            "Hey Cirilla, reject Messenger call\n\n" +
+            "OTHER EXAMPLES\n\n" +
             "Hey Cirilla, open Chrome\n" +
             "Hey Cirilla, open YouTube\n" +
             "Hey Cirilla, open Gmail\n" +
             "Hey Cirilla, open WhatsApp\n" +
-            "Hey Cirilla, open Maps\n" +
-            "Hey Cirilla, open ChatGPT\n" +
-            "Hey Cirilla, Wi-Fi settings\n" +
             "Hey Cirilla, volume up\n" +
             "Hey Cirilla, go home\n" +
-            "Hey Cirilla, go back\n" +
             "Hey Cirilla, scroll down\n" +
             "Hey Cirilla, click Send\n" +
-            "Hey Cirilla, type hello world\n" +
             "Hey Cirilla, switch to Geralt"
         );
         commands.setTextColor(Color.LTGRAY);
@@ -130,9 +151,32 @@ public class MainActivity extends Activity {
     }
 
     private void requestMic() {
-        if (Build.VERSION.SDK_INT >= 23 &&
-            checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO}, MIC_REQUEST);
+        } else {
+            updateStatus();
+        }
+    }
+
+    private void requestPhoneControl() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
+            updateStatus();
+            return;
+        }
+
+        boolean answer = checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS)
+            == PackageManager.PERMISSION_GRANTED;
+        boolean state = checkSelfPermission(Manifest.permission.READ_PHONE_STATE)
+            == PackageManager.PERMISSION_GRANTED;
+
+        if (!answer || !state) {
+            requestPermissions(
+                new String[]{
+                    Manifest.permission.ANSWER_PHONE_CALLS,
+                    Manifest.permission.READ_PHONE_STATE
+                },
+                PHONE_REQUEST
+            );
         } else {
             updateStatus();
         }
@@ -157,18 +201,43 @@ public class MainActivity extends Activity {
         }
     }
 
+    private boolean hasNotificationAccess() {
+        String enabled = Settings.Secure.getString(
+            getContentResolver(),
+            "enabled_notification_listeners"
+        );
+        if (enabled == null) return false;
+
+        String component = new ComponentName(
+            this,
+            CallNotificationService.class
+        ).flattenToString();
+
+        return enabled.contains(component);
+    }
+
     private void updateStatus() {
-        boolean mic = Build.VERSION.SDK_INT < 23 ||
-            checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        boolean mic = checkSelfPermission(Manifest.permission.RECORD_AUDIO)
+            == PackageManager.PERMISSION_GRANTED;
 
         boolean activeAssistant = VoiceInteractionService.isActiveService(
             this,
             new ComponentName(this, CirillaVoiceInteractionService.class)
         );
 
+        boolean phoneControl = Build.VERSION.SDK_INT < Build.VERSION_CODES.O ||
+            (
+                checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS)
+                    == PackageManager.PERMISSION_GRANTED &&
+                checkSelfPermission(Manifest.permission.READ_PHONE_STATE)
+                    == PackageManager.PERMISSION_GRANTED
+            );
+
         status.setText(
             "Microphone: " + (mic ? "READY" : "PERMISSION NEEDED") +
             "\nDefault Assistant: " + (activeAssistant ? "MASUM AI ACTIVE" : "NOT SELECTED") +
+            "\nSIM Call Control: " + (phoneControl ? "READY" : "PERMISSION NEEDED") +
+            "\nWhatsApp/Messenger Call Access: " + (hasNotificationAccess() ? "READY" : "NOTIFICATION ACCESS NEEDED") +
             "\nAccessibility: " + (CirillaAccessibilityService.isRunning() ? "ENABLED" : "OPTIONAL / OFF")
         );
     }
