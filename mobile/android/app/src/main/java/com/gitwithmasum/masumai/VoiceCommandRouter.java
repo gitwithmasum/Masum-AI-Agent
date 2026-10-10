@@ -23,6 +23,10 @@ public class VoiceCommandRouter {
     private TextToSpeech tts;
     private String pendingReplySource;
     private String pendingReplyText;
+    private String pendingContactAction;
+    private String pendingContactName;
+    private String pendingContactNumber;
+    private String pendingContactMessage;
 
     public VoiceCommandRouter(Context context) {
         this.context = context;
@@ -49,7 +53,10 @@ public class VoiceCommandRouter {
     }
 
     public boolean hasPendingConfirmation() {
-        return pendingReplySource != null && pendingReplyText != null;
+        return (
+            pendingReplySource != null &&
+            pendingReplyText != null
+        ) || pendingContactAction != null;
     }
 
     private void clearPendingReply() {
@@ -57,22 +64,77 @@ public class VoiceCommandRouter {
         pendingReplyText = null;
     }
 
+    private void clearPendingContactAction() {
+        pendingContactAction = null;
+        pendingContactName = null;
+        pendingContactNumber = null;
+        pendingContactMessage = null;
+    }
+
+    private void clearAllPendingActions() {
+        clearPendingReply();
+        clearPendingContactAction();
+    }
+
     public void execute(String raw, String persona) {
         String cmd = raw.toLowerCase(Locale.ROOT).trim();
 
         if (hasPendingConfirmation()) {
-            if (matches(
+            boolean yes = matches(
                 cmd,
                 "yes",
                 "yeah",
                 "yep",
                 "confirm",
-                "send it",
                 "do it",
                 "হ্যাঁ",
                 "জি",
-                "পাঠাও"
-            )) {
+                "কনফার্ম"
+            );
+
+            if (
+                pendingReplySource != null &&
+                matches(cmd, "send it", "পাঠাও")
+            ) {
+                yes = true;
+            }
+
+            if (yes) {
+                if (pendingContactAction != null) {
+                    String action = pendingContactAction;
+                    String name = pendingContactName;
+                    String number = pendingContactNumber;
+                    String message = pendingContactMessage;
+                    clearPendingContactAction();
+
+                    ContactActionManager.ActionResult result;
+
+                    if ("call".equals(action)) {
+                        result = ContactActionManager.call(
+                            context,
+                            number,
+                            name
+                        );
+                    } else if ("sms".equals(action)) {
+                        result = ContactActionManager.composeSms(
+                            context,
+                            number,
+                            name,
+                            message
+                        );
+                    } else {
+                        result = ContactActionManager.composeWhatsApp(
+                            context,
+                            number,
+                            name,
+                            message
+                        );
+                    }
+
+                    speak(result.message);
+                    return;
+                }
+
                 String source = pendingReplySource;
                 String message = pendingReplyText;
                 clearPendingReply();
@@ -93,12 +155,12 @@ public class VoiceCommandRouter {
                 "ক্যানসেল",
                 "বাদ দাও"
             )) {
-                clearPendingReply();
-                speak("Reply cancelled.");
+                clearAllPendingActions();
+                speak("Action cancelled.");
                 return;
             }
 
-            speak("Please say yes to send the reply, or no to cancel.");
+            speak("Please say yes to confirm, or no to cancel.");
             return;
         }
 
@@ -276,6 +338,166 @@ public class VoiceCommandRouter {
             speak(
                 "Send reply, " + pendingReplyText +
                 ", to " + target + "? Say yes or no."
+            );
+            return;
+        }
+
+        Matcher callContactEnglish = Pattern
+            .compile(
+                "^(?:call|phone)\\s+(.+)$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
+        Matcher callContactBangla = Pattern
+            .compile(
+                "^(.+?)(?:কে)?\\s*(?:কল|ফোন)\\s+করো$"
+            )
+            .matcher(raw.trim());
+
+        String contactToCall = null;
+
+        if (callContactEnglish.find()) {
+            String candidate = callContactEnglish.group(1).trim();
+            if (!candidate.matches("[+0-9][0-9 -]{4,}")) {
+                contactToCall = candidate;
+            }
+        } else if (callContactBangla.find()) {
+            contactToCall = callContactBangla.group(1).trim();
+        }
+
+        if (contactToCall != null && !contactToCall.isBlank()) {
+            ContactActionManager.ContactResult contact =
+                ContactActionManager.resolve(
+                    context,
+                    contactToCall
+                );
+
+            if (!contact.found) {
+                speak(contact.message);
+                return;
+            }
+
+            pendingContactAction = "call";
+            pendingContactName = contact.name;
+            pendingContactNumber = contact.number;
+            pendingContactMessage = "";
+
+            speak(
+                "Call " + contact.name +
+                "? Say yes or no."
+            );
+            return;
+        }
+
+        Matcher smsEnglish = Pattern
+            .compile(
+                "^(?:send\\s+sms\\s+to|text)\\s+" +
+                "(.+?)\\s+(?:saying|message)\\s+(.+)$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
+        Matcher smsBangla = Pattern
+            .compile(
+                "^(.+?)(?:কে)?\\s+(?:এসএমএস|এস এম এস)\\s+" +
+                "(?:করো|দাও)\\s+(.+)$"
+            )
+            .matcher(raw.trim());
+
+        String smsName = null;
+        String smsText = null;
+
+        if (smsEnglish.find()) {
+            smsName = smsEnglish.group(1).trim();
+            smsText = smsEnglish.group(2).trim();
+        } else if (smsBangla.find()) {
+            smsName = smsBangla.group(1).trim();
+            smsText = smsBangla.group(2).trim();
+        }
+
+        if (
+            smsName != null &&
+            smsText != null &&
+            !smsText.isBlank()
+        ) {
+            ContactActionManager.ContactResult contact =
+                ContactActionManager.resolve(
+                    context,
+                    smsName
+                );
+
+            if (!contact.found) {
+                speak(contact.message);
+                return;
+            }
+
+            pendingContactAction = "sms";
+            pendingContactName = contact.name;
+            pendingContactNumber = contact.number;
+            pendingContactMessage = smsText;
+
+            speak(
+                "Prepare SMS to " + contact.name +
+                " saying, " + smsText +
+                "? Say yes or no."
+            );
+            return;
+        }
+
+        Matcher whatsappEnglish = Pattern
+            .compile(
+                "^(?:send\\s+whatsapp\\s+to|whatsapp)\\s+" +
+                "(.+?)\\s+(?:saying|message)\\s+(.+)$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
+        Matcher whatsappBangla = Pattern
+            .compile(
+                "^(.+?)(?:কে)?\\s+হোয়াটসঅ্যাপ\\s+" +
+                "(?:করো|দাও)\\s+(.+)$"
+            )
+            .matcher(raw.trim());
+
+        String whatsappName = null;
+        String whatsappText = null;
+
+        if (whatsappEnglish.find()) {
+            whatsappName = whatsappEnglish.group(1).trim();
+            whatsappText = whatsappEnglish.group(2).trim();
+        } else if (whatsappBangla.find()) {
+            whatsappName = whatsappBangla.group(1).trim();
+            whatsappText = whatsappBangla.group(2).trim();
+        }
+
+        if (
+            whatsappName != null &&
+            whatsappText != null &&
+            !whatsappText.isBlank()
+        ) {
+            ContactActionManager.ContactResult contact =
+                ContactActionManager.resolve(
+                    context,
+                    whatsappName
+                );
+
+            if (!contact.found) {
+                speak(contact.message);
+                return;
+            }
+
+            pendingContactAction = "whatsapp";
+            pendingContactName = contact.name;
+            pendingContactNumber = contact.number;
+            pendingContactMessage = whatsappText;
+
+            speak(
+                "Prepare WhatsApp message to " +
+                contact.name +
+                " saying, " +
+                whatsappText +
+                "? Say yes or no."
             );
             return;
         }

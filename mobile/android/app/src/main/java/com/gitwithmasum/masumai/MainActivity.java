@@ -25,6 +25,7 @@ import java.util.Locale;
 public class MainActivity extends Activity {
     private static final int MIC_REQUEST = 41;
     private static final int PHONE_REQUEST = 43;
+    private static final int CONTACT_REQUEST = 44;
     private TextView status;
 
     @Override
@@ -39,7 +40,7 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("MASUM AI AGENT\nMobile Companion v5.3");
+        title.setText("MASUM AI AGENT\nMobile Companion v5.4");
         title.setTextColor(Color.rgb(103, 232, 255));
         title.setTextSize(26);
         title.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -53,7 +54,8 @@ public class MainActivity extends Activity {
             "3. Allow phone call control for SIM calls\n" +
             "4. Enable Notification Access for calls, notifications and direct replies\n" +
             "5. Optional: enable Accessibility Voice Control\n" +
-            "6. Pair with the Windows companion for laptop voice control\n\n" +
+            "6. Allow Contacts + Outgoing Calls for name-based calling\n" +
+            "7. Pair with the Windows companion for laptop voice control\n\n" +
             "Cirilla/Geralt never auto-answer calls. A call action only runs after your explicit voice command."
         );
         intro.setTextColor(Color.WHITE);
@@ -93,6 +95,10 @@ public class MainActivity extends Activity {
             new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
         ));
         root.addView(accessibility, matchWrap());
+
+        Button contacts = button("6 — ALLOW CONTACTS + OUTGOING CALLS");
+        contacts.setOnClickListener(v -> requestContactActions());
+        root.addView(contacts, matchWrap());
 
         TextView languageTitle = new TextView(this);
         languageTitle.setText("\nVOICE LANGUAGE");
@@ -198,6 +204,12 @@ public class MainActivity extends Activity {
             "Hey Cirilla, go home\n" +
             "Hey Cirilla, scroll down\n" +
             "Hey Cirilla, click Send\n" +
+            "Hey Cirilla, call Rahim\n" +
+            "Hey Cirilla, send SMS to Rahim saying I am coming\n" +
+            "Hey Cirilla, WhatsApp Rahim saying I will call later\n" +
+            "হেই সিরিলা, রহিমকে কল করো\n" +
+            "হেই সিরিলা, রহিমকে এসএমএস করো আমি আসছি\n" +
+            "হেই সিরিলা, রহিমকে হোয়াটসঅ্যাপ করো আমি পরে কল করব\n" +
             "Hey Cirilla, switch to Geralt"
         );
         commands.setTextColor(Color.LTGRAY);
@@ -255,6 +267,27 @@ public class MainActivity extends Activity {
                     Manifest.permission.READ_PHONE_STATE
                 },
                 PHONE_REQUEST
+            );
+        } else {
+            updateStatus();
+        }
+    }
+
+    private void requestContactActions() {
+        boolean contacts =
+            checkSelfPermission(Manifest.permission.READ_CONTACTS)
+                == PackageManager.PERMISSION_GRANTED;
+        boolean calling =
+            checkSelfPermission(Manifest.permission.CALL_PHONE)
+                == PackageManager.PERMISSION_GRANTED;
+
+        if (!contacts || !calling) {
+            requestPermissions(
+                new String[]{
+                    Manifest.permission.READ_CONTACTS,
+                    Manifest.permission.CALL_PHONE
+                },
+                CONTACT_REQUEST
             );
         } else {
             updateStatus();
@@ -353,12 +386,21 @@ public class MainActivity extends Activity {
                     == PackageManager.PERMISSION_GRANTED
             );
 
+        boolean contactsReady =
+            checkSelfPermission(Manifest.permission.READ_CONTACTS)
+                == PackageManager.PERMISSION_GRANTED;
+        boolean outgoingReady =
+            checkSelfPermission(Manifest.permission.CALL_PHONE)
+                == PackageManager.PERMISSION_GRANTED;
+
         status.setText(
             "Microphone: " + (mic ? "READY" : "PERMISSION NEEDED") +
             "\nDefault Assistant: " + (activeAssistant ? "MASUM AI ACTIVE" : "NOT SELECTED") +
             "\nSIM Call Control: " + (phoneControl ? "READY" : "PERMISSION NEEDED") +
             "\nCall + Message Notification Access: " + (hasNotificationAccess() ? "READY" : "NOTIFICATION ACCESS NEEDED") +
             "\nAccessibility: " + (CirillaAccessibilityService.isRunning() ? "ENABLED" : "OPTIONAL / OFF") +
+            "\nContacts: " + (contactsReady ? "READY" : "PERMISSION NEEDED") +
+            "\nOutgoing Call: " + (outgoingReady ? "READY" : "DIALER FALLBACK") +
             "\nVoice Language: " + voiceLanguageMode().toUpperCase(Locale.ROOT) +
             "\nLaptop Bridge: " + (BridgeClient.isConfigured(this) ? "PAIRED" : "NOT PAIRED")
         );

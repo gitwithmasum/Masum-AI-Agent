@@ -1,5 +1,25 @@
 # Masum AI Agent
 
+## v5.4 — Contacts + Messaging Assistant
+
+Android Cirilla/Geralt can now resolve saved contact names for confirmed outgoing calls and pre-filled SMS / WhatsApp messages.
+
+```text
+Hey Cirilla, call Rahim
+Hey Cirilla, send SMS to Rahim saying I am coming
+Hey Cirilla, WhatsApp Rahim saying I will call later
+
+হেই সিরিলা, রহিমকে কল করো
+হেই সিরিলা, রহিমকে এসএমএস করো আমি আসছি
+হেই সিরিলা, রহিমকে হোয়াটসঅ্যাপ করো আমি পরে কল করব
+```
+
+Outgoing calls require explicit Yes/No confirmation. SMS and WhatsApp open a pre-filled compose screen after confirmation; the existing Accessibility voice command can press the visible Send button.
+
+Artifact: `Masum-AI-Agent-Android-APK-v5.4`
+
+---
+
 ## v5.3 — Bangla Voice + Mobile ↔ Laptop Bridge
 
 Cirilla/Geralt now supports a dedicated Android **বাংলা (bn-BD)** recognition mode plus an authenticated local bridge between the Android app and the Windows companion.
@@ -204,7 +224,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v5.3 — Bangla Voice + Mobile ↔ Laptop Bridge**
+**v5.4 — Contacts + Messaging Assistant**
 
 ## Roadmap
 
@@ -229,7 +249,8 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 - v5.0 — Android Cirilla / Geralt Companion ✅
 - v5.1 — Universal Call Voice Control ✅
 - v5.2 — Voice Notifications + Smart Reply ✅
-- **v5.3 — Bangla Voice + Mobile ↔ Laptop Bridge ✅**
+- v5.3 — Bangla Voice + Mobile ↔ Laptop Bridge ✅
+- **v5.4 — Contacts + Messaging Assistant ✅**
 
 ## Author
 

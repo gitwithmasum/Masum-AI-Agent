@@ -1,53 +1,48 @@
-# Masum AI Agent Mobile v5.3
+# Masum AI Agent Mobile v5.4
 
-Native Android Cirilla / Geralt companion with Bangla voice mode and paired laptop control.
+Native Android Cirilla / Geralt companion with contact-aware outgoing calls and messaging.
 
-## Bangla voice
+## Contacts permission
 
-The app now has three speech-recognition modes:
+v5.4 can resolve a spoken contact name from Android Contacts. The app requests:
 
-- AUTO
-- বাংলা — forces `bn-BD`
-- ENGLISH — forces `en-US`
+- READ_CONTACTS — only when you enable Contacts support
+- CALL_PHONE — for direct outgoing calls after voice confirmation
 
-Tap the Voice Language button inside the app to switch modes. Bangla command aliases are included for calls, notifications, replies, app controls, volume, navigation and laptop bridge actions.
+If CALL_PHONE is not granted, Cirilla falls back to opening the dialer.
 
-Examples:
-
-```text
-হেই সিরিলা, সর্বশেষ নোটিফিকেশন পড়ো
-হেই সিরিলা, কল ধরো
-হেই সিরিলা, ভলিউম বাড়াও
-হেই সিরিলা, হোয়াটসঅ্যাপে রিপ্লাই দাও আমি পরে কল করব
-```
-
-## Mobile ↔ Laptop bridge
-
-Windows Masum AI Agent v5.3 exposes a local allowlisted bridge on port 8767.
-
-Pair once:
-
-1. Install/update the Windows companion.
-2. From the Windows tray choose **Open Mobile Pairing Info**.
-3. Keep phone and laptop on the same trusted private Wi-Fi.
-4. In the Android app enter the Bridge URL and Pairing Key.
-5. Tap **Save + Test Laptop Pairing**.
-6. If Windows Firewall prompts, allow the app on **Private networks only**.
-
-Examples:
+## Voice examples
 
 ```text
-Hey Cirilla, open VS Code on laptop
-Hey Cirilla, open Chrome on laptop
-Hey Cirilla, open GitHub on laptop
-Hey Cirilla, laptop status
+Hey Cirilla, call Rahim
+Cirilla: Call Rahim? Say yes or no.
+You: Yes
 
-হেই সিরিলা, ল্যাপটপে ভিএস কোড খোলো
-হেই সিরিলা, ল্যাপটপে ক্রোম খোলো
-হেই সিরিলা, ল্যাপটপে গিটহাব খোলো
-হেই সিরিলা, ল্যাপটপ স্ট্যাটাস
+Hey Cirilla, send SMS to Rahim saying I am coming
+Cirilla: Prepare SMS to Rahim ...? Say yes or no.
+You: Yes
+
+Hey Cirilla, WhatsApp Rahim saying I will call later
+Cirilla: Prepare WhatsApp message to Rahim ...? Say yes or no.
+You: Yes
 ```
 
-Bridge requests use HMAC-SHA256, timestamps and one-time nonces. The pairing key itself is not sent over the network and replayed requests are rejected. The transport is local HTTP, so command contents are not encrypted; use only a trusted private Wi-Fi network.
+Bangla:
 
-All earlier v5.1 call controls and v5.2 notification/smart-reply features remain available.
+```text
+হেই সিরিলা, রহিমকে কল করো
+হেই সিরিলা, রহিমকে এসএমএস করো আমি আসছি
+হেই সিরিলা, রহিমকে হোয়াটসঅ্যাপ করো আমি পরে কল করব
+```
+
+SMS and WhatsApp are intentionally opened as a pre-filled compose screen instead of silently sending. With Accessibility Voice Control enabled, say:
+
+```text
+Hey Cirilla, click Send
+```
+
+to press a visible Send button.
+
+If multiple contacts match the same spoken name, Cirilla asks for a more specific contact name instead of guessing.
+
+All v5.1 call receiving, v5.2 notification/smart reply, and v5.3 Bangla + laptop bridge features remain available.
