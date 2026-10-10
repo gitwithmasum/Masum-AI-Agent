@@ -21,6 +21,8 @@ public class VoiceCommandRouter {
     private final Context context;
     private final AudioManager audio;
     private TextToSpeech tts;
+    private String pendingReplySource;
+    private String pendingReplyText;
 
     public VoiceCommandRouter(Context context) {
         this.context = context;
@@ -46,8 +48,59 @@ public class VoiceCommandRouter {
         }
     }
 
+    public boolean hasPendingConfirmation() {
+        return pendingReplySource != null && pendingReplyText != null;
+    }
+
+    private void clearPendingReply() {
+        pendingReplySource = null;
+        pendingReplyText = null;
+    }
+
     public void execute(String raw, String persona) {
         String cmd = raw.toLowerCase(Locale.ROOT).trim();
+
+        if (hasPendingConfirmation()) {
+            if (matches(
+                cmd,
+                "yes",
+                "yeah",
+                "yep",
+                "confirm",
+                "send it",
+                "do it",
+                "হ্যাঁ",
+                "জি",
+                "পাঠাও"
+            )) {
+                String source = pendingReplySource;
+                String message = pendingReplyText;
+                clearPendingReply();
+
+                CallNotificationService.Result result =
+                    CallNotificationService.reply(source, message);
+                speak(result.message);
+                return;
+            }
+
+            if (matches(
+                cmd,
+                "no",
+                "cancel",
+                "do not send",
+                "don't send",
+                "না",
+                "ক্যানসেল",
+                "বাদ দাও"
+            )) {
+                clearPendingReply();
+                speak("Reply cancelled.");
+                return;
+            }
+
+            speak("Please say yes to send the reply, or no to cancel.");
+            return;
+        }
 
         if (cmd.contains("switch to geralt") || cmd.equals("geralt mode")) {
             speak("Geralt mode active.");
@@ -114,6 +167,81 @@ public class VoiceCommandRouter {
                     " I did not end any active call."
                 );
             }
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "read latest notification",
+            "read my latest notification",
+            "latest notification",
+            "সর্বশেষ নোটিফিকেশন পড়ো"
+        )) {
+            CallNotificationService.Result result =
+                CallNotificationService.latestNotification("any");
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "list notifications",
+            "read my notifications",
+            "what notifications do i have",
+            "নোটিফিকেশনগুলো পড়ো"
+        )) {
+            CallNotificationService.Result result =
+                CallNotificationService.listNotifications(3);
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "read latest whatsapp message",
+            "read whatsapp message",
+            "latest whatsapp message"
+        )) {
+            CallNotificationService.Result result =
+                CallNotificationService.latestNotification("whatsapp");
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "read latest messenger message",
+            "read messenger message",
+            "latest messenger message"
+        )) {
+            CallNotificationService.Result result =
+                CallNotificationService.latestNotification("messenger");
+            speak(result.message);
+            return;
+        }
+
+        Matcher replyMessage = Pattern
+            .compile(
+                "^(?:reply(?: to)?|respond(?: to)?)\\s+" +
+                "(whatsapp|messenger|notification)\\s+(.+)$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
+        if (replyMessage.find()) {
+            pendingReplySource =
+                replyMessage.group(1).toLowerCase(Locale.ROOT);
+            pendingReplyText = replyMessage.group(2).trim();
+
+            String target =
+                pendingReplySource.equals("notification")
+                    ? "the latest replyable notification"
+                    : "the latest " + pendingReplySource + " chat";
+
+            speak(
+                "Send reply, " + pendingReplyText +
+                ", to " + target + "? Say yes or no."
+            );
             return;
         }
 

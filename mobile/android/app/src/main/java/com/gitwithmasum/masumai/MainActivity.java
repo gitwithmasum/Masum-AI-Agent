@@ -35,7 +35,7 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("MASUM AI AGENT\nMobile Companion v5.1");
+        title.setText("MASUM AI AGENT\nMobile Companion v5.2");
         title.setTextColor(Color.rgb(103, 232, 255));
         title.setTextSize(26);
         title.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -47,7 +47,7 @@ public class MainActivity extends Activity {
             "1. Allow microphone\n" +
             "2. Set Masum AI Agent as Default Assistant\n" +
             "3. Allow phone call control for SIM calls\n" +
-            "4. Enable Notification Access for WhatsApp/Messenger calls\n" +
+            "4. Enable Notification Access for calls, notifications and direct replies\n" +
             "5. Optional: enable Accessibility Voice Control\n\n" +
             "Cirilla/Geralt never auto-answer calls. A call action only runs after your explicit voice command."
         );
@@ -73,7 +73,7 @@ public class MainActivity extends Activity {
         phone.setOnClickListener(v -> requestPhoneControl());
         root.addView(phone, matchWrap());
 
-        Button notifications = button("4 — ENABLE WHATSAPP / MESSENGER CALL ACCESS");
+        Button notifications = button("4 — ENABLE CALL + MESSAGE NOTIFICATION ACCESS");
         notifications.setOnClickListener(v -> {
             try {
                 startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS));
@@ -110,6 +110,13 @@ public class MainActivity extends Activity {
             "Hey Cirilla, reject WhatsApp call\n" +
             "Hey Cirilla, answer Messenger call\n" +
             "Hey Cirilla, reject Messenger call\n\n" +
+            "MESSAGE VOICE EXAMPLES\n\n" +
+            "Hey Cirilla, read latest notification\n" +
+            "Hey Cirilla, list notifications\n" +
+            "Hey Cirilla, read latest WhatsApp message\n" +
+            "Hey Cirilla, read latest Messenger message\n" +
+            "Hey Cirilla, reply WhatsApp I will call you later\n" +
+            "Hey Cirilla, reply Messenger Okay I am coming\n\n" +
             "OTHER EXAMPLES\n\n" +
             "Hey Cirilla, open Chrome\n" +
             "Hey Cirilla, open YouTube\n" +
@@ -237,7 +244,7 @@ public class MainActivity extends Activity {
             "Microphone: " + (mic ? "READY" : "PERMISSION NEEDED") +
             "\nDefault Assistant: " + (activeAssistant ? "MASUM AI ACTIVE" : "NOT SELECTED") +
             "\nSIM Call Control: " + (phoneControl ? "READY" : "PERMISSION NEEDED") +
-            "\nWhatsApp/Messenger Call Access: " + (hasNotificationAccess() ? "READY" : "NOTIFICATION ACCESS NEEDED") +
+            "\nCall + Message Notification Access: " + (hasNotificationAccess() ? "READY" : "NOTIFICATION ACCESS NEEDED") +
             "\nAccessibility: " + (CirillaAccessibilityService.isRunning() ? "ENABLED" : "OPTIONAL / OFF")
         );
     }

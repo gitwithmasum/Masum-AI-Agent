@@ -137,7 +137,7 @@ public class CirillaVoiceInteractionService extends VoiceInteractionService {
             String inline = stripWake(text);
             if (!inline.isEmpty()) {
                 route(inline);
-                awake = false;
+                awake = router != null && router.hasPendingConfirmation();
             } else {
                 router.speak("Yes?");
             }
@@ -145,7 +145,7 @@ public class CirillaVoiceInteractionService extends VoiceInteractionService {
         }
 
         route(text);
-        awake = false;
+        awake = router != null && router.hasPendingConfirmation();
     }
 
     private void route(String command) {

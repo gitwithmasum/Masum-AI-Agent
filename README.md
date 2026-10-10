@@ -1,5 +1,23 @@
 # Masum AI Agent
 
+## v5.2 — Voice Notifications + Smart Reply
+
+Android Cirilla / Geralt can now read active notifications and use Android direct-reply actions with a voice confirmation step.
+
+```text
+Hey Cirilla, read latest notification
+Hey Cirilla, list notifications
+Hey Cirilla, read latest WhatsApp message
+Hey Cirilla, reply WhatsApp I will call you later
+You: Yes
+```
+
+Notification reading/reply reuses the same user-approved Notification Access introduced for v5.1 call control. Replies are only sent when the notification exposes Android RemoteInput; unknown actions are not guessed. Obvious OTP/security-code notifications are not read aloud.
+
+Artifact: `Masum-AI-Agent-Android-APK-v5.2`
+
+---
+
 ## v5.1 — Universal Call Voice Control
 
 Android mobile companion now supports explicit voice control for incoming calls:
@@ -168,7 +186,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v5.1 — Universal Call Voice Control**
+**v5.2 — Voice Notifications + Smart Reply**
 
 ## Roadmap
 
@@ -191,7 +209,8 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 - v4.5 — Voice Actions + Smart Confirmation ✅
 - v4.6 — Install-and-Run Windows Companion ✅
 - v5.0 — Android Cirilla / Geralt Companion ✅
-- **v5.1 — Universal Call Voice Control ✅**
+- v5.1 — Universal Call Voice Control ✅
+- **v5.2 — Voice Notifications + Smart Reply ✅**
 
 ## Author
 
