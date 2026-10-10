@@ -1,5 +1,33 @@
 # Masum AI Agent
 
+## v4.4 — Hands-Free Voice Command Center
+
+v4.4 adds deterministic local voice controls on top of the existing Cirilla/Geralt wake system.
+
+Examples:
+
+```text
+Hey Cirilla, open Research
+Hey Geralt, open Automation
+Switch to Geralt
+Switch to Cirilla
+Wake mode on
+Wake mode off
+Speak replies on
+Speak replies off
+Auto send on
+Auto send off
+Gmail status
+GitHub summary
+Voice commands
+```
+
+Dashboard-control commands are handled locally in the browser and do not need to be routed through the AI model. Anything that is not a dashboard-control command still goes through the normal Masum AI Agent routing and tool system.
+
+The Voice Commands panel inside Neural Chat shows the currently supported shortcuts.
+
+---
+
 ## v4.3 — Dual Voice Personas
 
 Masum AI Agent now has two selectable voice personas:
@@ -152,7 +180,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v4.1 — Fully Local Speech-to-Text + Voice Dashboard**
+**v4.4 — Hands-Free Voice Command Center**
 
 ### v3.0 adds
 
@@ -323,8 +351,12 @@ Ollama / qwen3:1.7b
 - v1.7 — Supabase / Database Agent ✅ (optional setup)
 - v1.8 — Automation ✅
 - v2.0 — Multi-Agent System ✅
-- **v3.0 — Web Dashboard ✅**
-- v4.0 — Voice Agent
+- v3.0 — Web Dashboard ✅
+- v4.0 — Voice Agent ✅
+- v4.1 — Local Faster-Whisper STT ✅
+- v4.2 — Wake Word Mode ✅
+- v4.3 — Cirilla / Geralt Dual Voice Personas ✅
+- **v4.4 — Hands-Free Voice Command Center ✅**
 
 ## Author
 
