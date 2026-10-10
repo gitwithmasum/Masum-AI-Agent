@@ -1,5 +1,68 @@
 # Masum AI Agent
 
+## v4.6 — Install-and-Run Windows Companion
+
+The Windows companion is designed for this end-user flow:
+
+```text
+Install Masum AI Agent once
+→ sign in to Windows
+→ Cirilla starts automatically in the system tray
+→ say “Hey Cirilla”
+→ use safe desktop voice commands
+```
+
+After the standalone installer is built and installed, VS Code, PowerShell, `python dashboard.py`, and a manually started STT server are not required for the desktop-launcher experience.
+
+Safe commands include:
+
+```text
+Hey Cirilla, open VS Code
+Hey Cirilla, open Masum AI Agent project
+Hey Cirilla, open Chrome
+Hey Cirilla, open GitHub
+Hey Cirilla, open Gmail
+Hey Cirilla, open ChatGPT
+Hey Cirilla, open Downloads
+Hey Cirilla, open Documents
+Hey Cirilla, switch to Geralt
+```
+
+Chrome profile launch is supported without storing passwords:
+
+```text
+Hey Cirilla, open Chrome profile <profile name>
+Hey Cirilla, open Gmail with <profile name or signed-in account>
+```
+
+The app reads Chrome's local profile metadata only to select an already signed-in profile. It never stores or types Google passwords.
+
+### First run
+
+The app automatically downloads its local Faster-Whisper models on first use and caches them under the user's local app-data folder. After the models are cached, wake detection and desktop command transcription stay local.
+
+### Windows startup
+
+The installer enables **Start Cirilla automatically when I sign in to Windows** by default. It installs for the current user and does not require administrator privileges.
+
+### Build locally
+
+```powershell
+.\build_windows_app.ps1
+```
+
+Output:
+
+```text
+installer-output\Masum-AI-Agent-Setup.exe
+```
+
+A GitHub Actions workflow also builds the same Windows installer artifact automatically when desktop-companion files change.
+
+Security: desktop actions use an explicit allowlist. Arbitrary voice text is never executed as PowerShell/CMD, and v4.6 does not perform destructive system actions.
+
+---
+
 ## v4.5 — Voice Actions + Smart Confirmation
 
 v4.5 extends Cirilla/Geralt from navigation commands into safe voice actions with confirmation.
@@ -229,7 +292,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v4.5 — Voice Actions + Smart Confirmation**
+**v4.6 — Install-and-Run Windows Companion**
 
 ### v3.0 adds
 
@@ -406,7 +469,8 @@ Ollama / qwen3:1.7b
 - v4.2 — Wake Word Mode ✅
 - v4.3 — Cirilla / Geralt Dual Voice Personas ✅
 - v4.4 — Hands-Free Voice Command Center ✅
-- **v4.5 — Voice Actions + Smart Confirmation ✅**
+- v4.5 — Voice Actions + Smart Confirmation ✅
+- **v4.6 — Install-and-Run Windows Companion ✅**
 
 ## Author
 

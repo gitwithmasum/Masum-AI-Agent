@@ -1,0 +1,64 @@
+name: Build Windows Companion
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+    paths:
+      - "desktop_companion.py"
+      - "requirements-desktop.txt"
+      - "build_windows_app.ps1"
+      - "installer/**"
+      - "dashboard/masum-ai-agent-logo.webp"
+      - ".github/workflows/windows-companion.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-desktop.txt
+
+      - name: Create Windows icon
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build | Out-Null
+          python -c "from PIL import Image; Image.open('dashboard/masum-ai-agent-logo.webp').convert('RGBA').save('build/masum-ai-agent.ico', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+
+      - name: Build standalone EXE
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name MasumAIAgent --icon build\masum-ai-agent.ico --collect-all faster_whisper --collect-all ctranslate2 --collect-all av --collect-all sounddevice --hidden-import pyttsx3.drivers --hidden-import pyttsx3.drivers.sapi5 desktop_companion.py
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\MasumAI.iss"
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Masum-AI-Agent-Windows-Setup
+          path: installer-output/Masum-AI-Agent-Setup.exe
+          if-no-files-found: error

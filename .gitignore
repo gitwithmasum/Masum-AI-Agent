@@ -21,3 +21,8 @@ research_reports/*
 secrets/*
 !secrets/.gitkeep
 
+.venv-desktop/
+build/
+dist/
+installer-output/
+*.spec
