@@ -196,7 +196,7 @@ $("#refreshReports").addEventListener("click",loadReports);
 Promise.all([loadStatus(),loadAgents(),loadAutomations(),loadReports()]);
 setInterval(loadStatus,30000);
 
-// v4.3 Dual Voice Persona — Cirilla / Geralt
+// v4.4 Hands-Free Voice Command Center — Cirilla / Geralt
 (function(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceBtn = document.querySelector("#voiceBtn");
@@ -281,6 +281,140 @@ setInterval(loadStatus,30000);
 
   function personaName(){
     return profile().name;
+  }
+
+  function normalizedCommand(text){
+    return String(text || "")
+      .toLowerCase()
+      .replace(/[.,!?;:]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function commandFeedback(message){
+    toast(message);
+    setState("VOICE COMMAND","ready",message);
+    if(speakReplies.checked){
+      speak(message);
+    }else{
+      resumeWakeAfterResponse();
+    }
+  }
+
+  function executeVoiceCommand(text){
+    const cmd = normalizedCommand(text);
+
+    if(/^(switch to )?(geralt|male)( mode| voice)?$/.test(cmd) || /^(গেরাল্ট|মেল)( মোড| ভয়েস| ভয়েস)?$/.test(cmd)){
+      persona.value = "geralt";
+      savePrefs();
+      refreshPersonaUi();
+      commandFeedback("Geralt mode active.");
+      return true;
+    }
+
+    if(/^(switch to )?(cirilla|female)( mode| voice)?$/.test(cmd) || /^(সিরিলা|ফিমেল)( মোড| ভয়েস| ভয়েস)?$/.test(cmd)){
+      persona.value = "cirilla";
+      savePrefs();
+      refreshPersonaUi();
+      commandFeedback("Cirilla mode active.");
+      return true;
+    }
+
+    const views = [
+      {id:"overview", patterns:[/^open overview$/, /^show overview$/, /^open dashboard$/, /^go home$/, /^ওভারভিউ খোলো$/, /^ড্যাশবোর্ড খোলো$/]},
+      {id:"chat", patterns:[/^open chat$/, /^open neural chat$/, /^show chat$/, /^চ্যাট খোলো$/, /^নিউরাল চ্যাট খোলো$/]},
+      {id:"agents", patterns:[/^open agents$/, /^show agents$/, /^agents$/, /^এজেন্ট খোলো$/, /^এজেন্টস খোলো$/]},
+      {id:"automation", patterns:[/^open automation$/, /^open automation center$/, /^show automation$/, /^অটোমেশন খোলো$/, /^অটোমেশন সেন্টার খোলো$/]},
+      {id:"research", patterns:[/^open research$/, /^open research vault$/, /^show research$/, /^রিসার্চ খোলো$/, /^রিসার্চ ভল্ট খোলো$/]}
+    ];
+
+    for(const view of views){
+      if(view.patterns.some(function(pattern){ return pattern.test(cmd); })){
+        setView(view.id);
+        commandFeedback("Opened " + view.id + ".");
+        return true;
+      }
+    }
+
+    if(/^(wake mode on|turn on wake mode|start wake mode)$/.test(cmd) || /^(ওয়েক মোড অন|ওয়েক মোড অন|ওয়েক মোড চালু|ওয়েক মোড চালু)$/.test(cmd)){
+      wakeMode.checked = true;
+      engine.value = "local";
+      savePrefs();
+      commandFeedback("Wake mode on for " + personaName() + ".");
+      return true;
+    }
+
+    if(/^(wake mode off|turn off wake mode|stop wake mode|stop listening)$/.test(cmd) || /^(ওয়েক মোড অফ|ওয়েক মোড অফ|ওয়েক মোড বন্ধ|ওয়েক মোড বন্ধ|শোনা বন্ধ)$/.test(cmd)){
+      wakeMode.checked = false;
+      wakePausedForCommand = false;
+      stopWakeListener();
+      savePrefs();
+      setWakeBadge("off",personaName().toUpperCase() + " OFF");
+      commandFeedback("Wake mode off.");
+      return true;
+    }
+
+    if(/^(speak replies on|voice replies on|turn on voice replies)$/.test(cmd)){
+      speakReplies.checked = true;
+      savePrefs();
+      commandFeedback("Spoken replies on.");
+      return true;
+    }
+
+    if(/^(speak replies off|voice replies off|turn off voice replies)$/.test(cmd)){
+      speakReplies.checked = false;
+      savePrefs();
+      toast("Spoken replies off.");
+      setState("VOICE COMMAND","ready","Spoken replies off.");
+      resumeWakeAfterResponse();
+      return true;
+    }
+
+    if(/^(auto send on|turn on auto send)$/.test(cmd)){
+      autoSend.checked = true;
+      savePrefs();
+      commandFeedback("Auto-send on.");
+      return true;
+    }
+
+    if(/^(auto send off|turn off auto send)$/.test(cmd)){
+      autoSend.checked = false;
+      savePrefs();
+      commandFeedback("Auto-send off.");
+      return true;
+    }
+
+    if(/^(gmail status|check gmail status)$/.test(cmd)){
+      setView("overview");
+      document.querySelector("#gmailStatusBtn").click();
+      commandFeedback("Checking Gmail status.");
+      return true;
+    }
+
+    if(/^(github summary|check github|check github summary)$/.test(cmd)){
+      setView("overview");
+      document.querySelector("#githubSummaryBtn").click();
+      commandFeedback("Checking GitHub summary.");
+      return true;
+    }
+
+    if(/^(voice commands|show voice commands|voice help|help voice)$/.test(cmd)){
+      const guide = document.querySelector("#voiceCommandGuide");
+      if(guide){
+        guide.open = true;
+        setView("chat");
+      }
+      commandFeedback("Voice command guide opened.");
+      return true;
+    }
+
+    return false;
+  }
+
+  function handleRecognizedCommand(text){
+    if(!executeVoiceCommand(text)) return false;
+    input.value = "";
+    return true;
   }
 
   function setState(label, mode, hint){
@@ -487,6 +621,10 @@ setInterval(loadStatus,30000);
       const text = String(data.text || "").trim();
       if(!text) throw new Error("Whisper did not detect clear speech.");
 
+      if(handleRecognizedCommand(text)){
+        return;
+      }
+
       input.value = text;
       const detected = data.language ? ("Detected " + data.language) : "Local transcription";
       setState("HEARD","ready",detected + ": " + text);
@@ -646,6 +784,9 @@ setInterval(loadStatus,30000);
         setState(name.toUpperCase() + " AWAKE","listening","Wake phrase detected.");
 
         if(command.length >= 2){
+          if(handleRecognizedCommand(command)){
+            return;
+          }
           input.value = command;
           wakePausedForCommand = true;
           setTimeout(function(){ form.requestSubmit(); },180);
@@ -803,8 +944,13 @@ setInterval(loadStatus,30000);
         );
       }
 
-      if(finalText && autoSend.checked){
-        setTimeout(function(){ form.requestSubmit(); },180);
+      if(finalText){
+        if(handleRecognizedCommand(finalText)){
+          return;
+        }
+        if(autoSend.checked){
+          setTimeout(function(){ form.requestSubmit(); },180);
+        }
       }
     };
 
