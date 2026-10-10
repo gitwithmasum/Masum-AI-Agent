@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-Write-Host "Masum AI Agent v4.1 - Local Whisper setup" -ForegroundColor Cyan
+Write-Host "Masum AI Agent v4.4 - Local Whisper + Dual Voice setup" -ForegroundColor Cyan
 Write-Host ""
 
 Write-Host "Checking Python 3.12..."
