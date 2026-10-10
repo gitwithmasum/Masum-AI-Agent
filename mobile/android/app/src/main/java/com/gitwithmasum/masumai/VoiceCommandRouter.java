@@ -102,11 +102,17 @@ public class VoiceCommandRouter {
             return;
         }
 
-        if (cmd.contains("switch to geralt") || cmd.equals("geralt mode")) {
+        if (cmd.contains("switch to geralt") ||
+            cmd.equals("geralt mode") ||
+            cmd.equals("গেরাল্ট মোড") ||
+            cmd.equals("গেরাল্ট চালু করো")) {
             speak("Geralt mode active.");
             return;
         }
-        if (cmd.contains("switch to cirilla") || cmd.equals("cirilla mode")) {
+        if (cmd.contains("switch to cirilla") ||
+            cmd.equals("cirilla mode") ||
+            cmd.equals("সিরিলা মোড") ||
+            cmd.equals("সিরিলা চালু করো")) {
             speak("Cirilla mode active.");
             return;
         }
@@ -175,7 +181,9 @@ public class VoiceCommandRouter {
             "read latest notification",
             "read my latest notification",
             "latest notification",
-            "সর্বশেষ নোটিফিকেশন পড়ো"
+            "সর্বশেষ নোটিফিকেশন পড়ো",
+            "শেষ নোটিফিকেশন পড়ো",
+            "আমার শেষ নোটিফিকেশন পড়ো"
         )) {
             CallNotificationService.Result result =
                 CallNotificationService.latestNotification("any");
@@ -188,7 +196,8 @@ public class VoiceCommandRouter {
             "list notifications",
             "read my notifications",
             "what notifications do i have",
-            "নোটিফিকেশনগুলো পড়ো"
+            "নোটিফিকেশনগুলো পড়ো",
+            "আমার নোটিফিকেশন পড়ো"
         )) {
             CallNotificationService.Result result =
                 CallNotificationService.listNotifications(3);
@@ -200,7 +209,9 @@ public class VoiceCommandRouter {
             cmd,
             "read latest whatsapp message",
             "read whatsapp message",
-            "latest whatsapp message"
+            "latest whatsapp message",
+            "সর্বশেষ হোয়াটসঅ্যাপ মেসেজ পড়ো",
+            "হোয়াটসঅ্যাপ মেসেজ পড়ো"
         )) {
             CallNotificationService.Result result =
                 CallNotificationService.latestNotification("whatsapp");
@@ -212,11 +223,35 @@ public class VoiceCommandRouter {
             cmd,
             "read latest messenger message",
             "read messenger message",
-            "latest messenger message"
+            "latest messenger message",
+            "সর্বশেষ মেসেঞ্জার মেসেজ পড়ো",
+            "মেসেঞ্জার মেসেজ পড়ো"
         )) {
             CallNotificationService.Result result =
                 CallNotificationService.latestNotification("messenger");
             speak(result.message);
+            return;
+        }
+
+        Matcher banglaReply = Pattern
+            .compile(
+                "^(?:হোয়াটসঅ্যাপে|হোয়াটসঅ্যাপ|মেসেঞ্জারে|মেসেঞ্জার)\\s+" +
+                "(?:রিপ্লাই|উত্তর)\\s+(?:দাও\\s+)?(.+)$"
+            )
+            .matcher(raw.trim());
+
+        if (banglaReply.find()) {
+            String lower = raw.toLowerCase(Locale.ROOT);
+            pendingReplySource =
+                lower.contains("মেসেঞ্জার")
+                    ? "messenger"
+                    : "whatsapp";
+            pendingReplyText = banglaReply.group(1).trim();
+
+            speak(
+                "এই রিপ্লাই পাঠাবো: " + pendingReplyText +
+                "? হ্যাঁ অথবা না বলো।"
+            );
             return;
         }
 
@@ -245,6 +280,85 @@ public class VoiceCommandRouter {
             return;
         }
 
+        if (matches(
+            cmd,
+            "laptop status",
+            "check laptop",
+            "is my laptop online",
+            "ল্যাপটপ স্ট্যাটাস",
+            "ল্যাপটপ অনলাইন আছে"
+        )) {
+            sendLaptopAction("status");
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "open vs code on laptop",
+            "open vscode on laptop",
+            "ল্যাপটপে ভিএস কোড খোলো",
+            "ল্যাপটপে ভিজুয়াল স্টুডিও কোড খোলো"
+        )) {
+            sendLaptopAction("open_vscode");
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "open masum ai agent on laptop",
+            "open my ai project on laptop",
+            "ল্যাপটপে মাসুম এআই এজেন্ট প্রজেক্ট খোলো",
+            "ল্যাপটপে আমার এআই প্রজেক্ট খোলো"
+        )) {
+            sendLaptopAction("open_project");
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "open chrome on laptop",
+            "ল্যাপটপে ক্রোম খোলো"
+        )) {
+            sendLaptopAction("open_chrome");
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "open github on laptop",
+            "ল্যাপটপে গিটহাব খোলো"
+        )) {
+            sendLaptopAction("open_github");
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "open gmail on laptop",
+            "ল্যাপটপে জিমেইল খোলো"
+        )) {
+            sendLaptopAction("open_gmail");
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "open chatgpt on laptop",
+            "ল্যাপটপে চ্যাটজিপিটি খোলো"
+        )) {
+            sendLaptopAction("open_chatgpt");
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "open downloads on laptop",
+            "ল্যাপটপে ডাউনলোডস খোলো"
+        )) {
+            sendLaptopAction("open_downloads");
+            return;
+        }
+
         if (matches(cmd, "open chrome", "chrome open", "ক্রোম খোলো")) {
             openPackageOrUrl("com.android.chrome", "https://www.google.com/");
             speak("Opening Chrome.");
@@ -265,17 +379,17 @@ public class VoiceCommandRouter {
             speak("Opening WhatsApp.");
             return;
         }
-        if (matches(cmd, "open maps", "open google maps", "maps open")) {
+        if (matches(cmd, "open maps", "open google maps", "maps open", "ম্যাপস খোলো", "গুগল ম্যাপস খোলো")) {
             openPackageOrUrl("com.google.android.apps.maps", "https://maps.google.com/");
             speak("Opening Maps.");
             return;
         }
-        if (matches(cmd, "open github", "github open")) {
+        if (matches(cmd, "open github", "github open", "গিটহাব খোলো")) {
             openUrl("https://github.com/");
             speak("Opening GitHub.");
             return;
         }
-        if (matches(cmd, "open chatgpt", "chatgpt open", "open chat gpt")) {
+        if (matches(cmd, "open chatgpt", "chatgpt open", "open chat gpt", "চ্যাটজিপিটি খোলো")) {
             openUrl("https://chatgpt.com/");
             speak("Opening ChatGPT.");
             return;
@@ -288,23 +402,23 @@ public class VoiceCommandRouter {
             return;
         }
 
-        if (matches(cmd, "open settings", "settings open")) {
+        if (matches(cmd, "open settings", "settings open", "সেটিংস খোলো")) {
             openSettings(Settings.ACTION_SETTINGS);
             speak("Opening settings.");
             return;
         }
-        if (matches(cmd, "wifi settings", "open wifi settings", "wi fi settings")) {
+        if (matches(cmd, "wifi settings", "open wifi settings", "wi fi settings", "ওয়াইফাই সেটিংস খোলো", "ওয়াই ফাই সেটিংস খোলো")) {
             openSettings(Settings.ACTION_WIFI_SETTINGS);
             speak("Opening Wi-Fi settings.");
             return;
         }
-        if (matches(cmd, "bluetooth settings", "open bluetooth settings")) {
+        if (matches(cmd, "bluetooth settings", "open bluetooth settings", "ব্লুটুথ সেটিংস খোলো")) {
             openSettings(Settings.ACTION_BLUETOOTH_SETTINGS);
             speak("Opening Bluetooth settings.");
             return;
         }
 
-        if (matches(cmd, "volume up", "increase volume")) {
+        if (matches(cmd, "volume up", "increase volume", "ভলিউম বাড়াও", "সাউন্ড বাড়াও")) {
             audio.adjustStreamVolume(
                 AudioManager.STREAM_MUSIC,
                 AudioManager.ADJUST_RAISE,
@@ -313,7 +427,7 @@ public class VoiceCommandRouter {
             speak("Volume up.");
             return;
         }
-        if (matches(cmd, "volume down", "decrease volume")) {
+        if (matches(cmd, "volume down", "decrease volume", "ভলিউম কমাও", "সাউন্ড কমাও")) {
             audio.adjustStreamVolume(
                 AudioManager.STREAM_MUSIC,
                 AudioManager.ADJUST_LOWER,
@@ -322,7 +436,7 @@ public class VoiceCommandRouter {
             speak("Volume down.");
             return;
         }
-        if (matches(cmd, "mute", "mute volume", "volume mute")) {
+        if (matches(cmd, "mute", "mute volume", "volume mute", "মিউট করো", "সাউন্ড বন্ধ করো")) {
             audio.adjustStreamVolume(
                 AudioManager.STREAM_MUSIC,
                 AudioManager.ADJUST_MUTE,
@@ -331,7 +445,7 @@ public class VoiceCommandRouter {
             speak("Muted.");
             return;
         }
-        if (matches(cmd, "unmute", "unmute volume")) {
+        if (matches(cmd, "unmute", "unmute volume", "আনমিউট করো", "সাউন্ড চালু করো")) {
             audio.adjustStreamVolume(
                 AudioManager.STREAM_MUSIC,
                 AudioManager.ADJUST_UNMUTE,
@@ -368,7 +482,7 @@ public class VoiceCommandRouter {
             return;
         }
 
-        if (matches(cmd, "recent apps", "open recent apps")) {
+        if (matches(cmd, "recent apps", "open recent apps", "রিসেন্ট অ্যাপস খোলো")) {
             if (accessibility != null) {
                 accessibility.performGlobalAction(
                     AccessibilityService.GLOBAL_ACTION_RECENTS
@@ -401,12 +515,36 @@ public class VoiceCommandRouter {
             .compile("^(?:click|tap|press)\\s+(.+)$")
             .matcher(cmd);
 
-        if (click.find()) {
+        Matcher banglaClick = Pattern
+            .compile("^(.+?)\\s+(?:ক্লিক|ট্যাপ)\\s+করো$")
+            .matcher(cmd);
+
+        if (click.find() || banglaClick.find()) {
+            String clickText = click.matches()
+                ? click.group(1)
+                : banglaClick.group(1);
+
             if (accessibility != null &&
-                accessibility.clickText(click.group(1))) {
+                accessibility.clickText(clickText)) {
                 speak("Done.");
             } else {
                 speak("I could not find that control.");
+            }
+            return;
+        }
+
+        Matcher banglaType = Pattern
+            .compile("^(?:টাইপ|লিখে দাও|লিখো)\\s+(.+)$")
+            .matcher(raw.trim());
+
+        if (banglaType.find()) {
+            if (accessibility != null &&
+                accessibility.typeText(banglaType.group(1))) {
+                speak("Typed.");
+            } else {
+                speak(
+                    "Focus a text field and enable Accessibility Voice Control first."
+                );
             }
             return;
         }
@@ -460,7 +598,9 @@ public class VoiceCommandRouter {
         ) || cmd.equals("answer") ||
            cmd.equals("receive the call") ||
            cmd.equals("কল রিসিভ করো") ||
-           cmd.equals("কল ধরো");
+           cmd.equals("কল ধরো") ||
+           cmd.equals("কল রিসিভ কর") ||
+           cmd.equals("কলটি ধরো");
     }
 
     private boolean isRejectCall(String cmd) {
@@ -469,7 +609,9 @@ public class VoiceCommandRouter {
         ) || cmd.equals("reject") ||
            cmd.equals("decline") ||
            cmd.equals("কল কেটে দাও") ||
-           cmd.equals("কল রিজেক্ট করো");
+           cmd.equals("কল রিজেক্ট করো") ||
+           cmd.equals("কল কেটে দাও") ||
+           cmd.equals("কলটি কেটে দাও");
     }
 
     private boolean isWhoIsCalling(String cmd) {
@@ -477,12 +619,14 @@ public class VoiceCommandRouter {
             cmd.equals("who's calling") ||
             cmd.equals("who is calling me") ||
             cmd.equals("caller name") ||
-            cmd.equals("কে কল করছে");
+            cmd.equals("কে কল করছে") ||
+            cmd.equals("কে ফোন করেছে") ||
+            cmd.equals("কলটি কার");
     }
 
     private String callSource(String cmd) {
-        if (cmd.contains("whatsapp")) return "whatsapp";
-        if (cmd.contains("messenger")) return "messenger";
+        if (cmd.contains("whatsapp") || cmd.contains("হোয়াটসঅ্যাপ")) return "whatsapp";
+        if (cmd.contains("messenger") || cmd.contains("মেসেঞ্জার")) return "messenger";
         if (cmd.contains("phone call") || cmd.contains("sim call")) {
             return "phone";
         }
@@ -552,6 +696,14 @@ public class VoiceCommandRouter {
         context.checkSelfPermission(
             Manifest.permission.READ_PHONE_STATE
         ) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void sendLaptopAction(String action) {
+        BridgeClient.send(
+            context,
+            action,
+            (ok, message) -> speak(message)
+        );
     }
 
     private boolean matches(String value, String... options) {

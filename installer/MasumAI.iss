@@ -1,5 +1,5 @@
 #define MyAppName "Masum AI Agent"
-#define MyAppVersion "4.6.0"
+#define MyAppVersion "5.3.0"
 #define MyAppPublisher "Masum Billah"
 #define MyAppExeName "MasumAIAgent.exe"
 

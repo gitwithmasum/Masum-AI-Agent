@@ -1,17 +1,22 @@
 from __future__ import annotations
 
 import ctypes
+import hashlib
+import hmac
 import json
 import logging
 import os
 import re
+import secrets
 import shutil
+import socket
 import subprocess
 import tempfile
 import threading
 import time
 import wave
 import webbrowser
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -26,7 +31,7 @@ from PIL import Image, ImageDraw
 load_dotenv(override=True)
 
 APP_NAME = "Masum AI Agent"
-VERSION = "4.6.0"
+VERSION = "5.3.0"
 LOCAL_APP_DATA = Path(
     os.getenv("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))
 )
@@ -52,11 +57,15 @@ COMMAND_MODEL_NAME = (
     os.getenv("DESKTOP_COMMAND_MODEL", "small").strip() or "small"
 )
 COMPUTE_TYPE = os.getenv("DESKTOP_COMPUTE_TYPE", "int8").strip() or "int8"
+BRIDGE_PORT = int(os.getenv("DESKTOP_BRIDGE_PORT", "8767"))
 
 DEFAULT_CONFIG = {
     "persona": "cirilla",
     "wake_enabled": True,
     "project_path": os.getenv("MASUM_AI_PROJECT_PATH", "").strip(),
+    "bridge_enabled": True,
+    "bridge_port": BRIDGE_PORT,
+    "bridge_secret": "",
 }
 
 CIRILLA_WAKE_PHRASES = [
@@ -81,6 +90,8 @@ STOP_EVENT = threading.Event()
 CONFIG_LOCK = threading.RLock()
 TTS_LOCK = threading.Lock()
 MODEL_LOCK = threading.Lock()
+BRIDGE_NONCE_LOCK = threading.Lock()
+BRIDGE_NONCES: dict[str, int] = {}
 
 wake_model: WhisperModel | None = None
 command_model: WhisperModel | None = None
@@ -127,6 +138,9 @@ def load_config() -> dict[str, Any]:
 
 
 config = load_config()
+if not str(config.get("bridge_secret") or "").strip():
+    config["bridge_secret"] = secrets.token_hex(32)
+    save_config(config)
 
 
 def set_config_value(key: str, value: Any) -> None:
@@ -478,12 +492,12 @@ def handle_command(raw_text: str) -> None:
     command = normalize_text(raw_text)
     logging.info("Command: %s", command)
 
-    if re.search(r"\b(switch to|use) geralt\b", command):
+    if re.search(r"\b(switch to|use) geralt\b", command) or command in {"গেরাল্ট মোড", "গেরাল্ট চালু করো"}:
         set_config_value("persona", "geralt")
         speak("Geralt mode active.")
         return
 
-    if re.search(r"\b(switch to|use) cirilla\b", command):
+    if re.search(r"\b(switch to|use) cirilla\b", command) or command in {"সিরিলা মোড", "সিরিলা চালু করো"}:
         set_config_value("persona", "cirilla")
         speak("Cirilla mode active.")
         return
@@ -508,6 +522,8 @@ def handle_command(raw_text: str) -> None:
             "open masum ai agent",
             "open masum ai agent project",
             "open my ai agent project",
+            "মাসুম এআই এজেন্ট প্রজেক্ট খোলো",
+            "আমার এআই প্রজেক্ট খোলো",
         )
     ):
         project = discover_project_path()
@@ -547,9 +563,13 @@ def handle_command(raw_text: str) -> None:
 
     sites = {
         "open github": "https://github.com/",
+        "গিটহাব খোলো": "https://github.com/",
         "open gmail": "https://mail.google.com/",
+        "জিমেইল খোলো": "https://mail.google.com/",
         "open chatgpt": "https://chatgpt.com/",
+        "চ্যাটজিপিটি খোলো": "https://chatgpt.com/",
         "open youtube": "https://www.youtube.com/",
+        "ইউটিউব খোলো": "https://www.youtube.com/",
     }
     if command in sites:
         if not open_chrome(sites[command]):
@@ -557,7 +577,7 @@ def handle_command(raw_text: str) -> None:
         speak(command.replace("open ", "Opening ") + ".")
         return
 
-    if command in {"open downloads", "downloads open"}:
+    if command in {"open downloads", "downloads open", "ডাউনলোডস খোলো"}:
         speak(
             "Opening Downloads."
             if open_folder(Path.home() / "Downloads")
@@ -565,7 +585,7 @@ def handle_command(raw_text: str) -> None:
         )
         return
 
-    if command in {"open documents", "documents open"}:
+    if command in {"open documents", "documents open", "ডকুমেন্টস খোলো"}:
         speak(
             "Opening Documents."
             if open_folder(Path.home() / "Documents")
@@ -581,6 +601,197 @@ def handle_command(raw_text: str) -> None:
     speak(
         "I heard the command, but this desktop action is not on my safe allowlist yet."
     )
+
+
+
+def lan_ip_address() -> str:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        sock.connect(("8.8.8.8", 80))
+        return str(sock.getsockname()[0])
+    except OSError:
+        try:
+            return socket.gethostbyname(socket.gethostname())
+        except OSError:
+            return "127.0.0.1"
+    finally:
+        sock.close()
+
+
+def bridge_pairing_path() -> Path:
+    return APP_DATA_DIR / "mobile-bridge-pairing.txt"
+
+
+def write_bridge_pairing_info() -> Path:
+    port = int(config.get("bridge_port") or BRIDGE_PORT)
+    path = bridge_pairing_path()
+    path.write_text(
+        "Masum AI Agent Mobile ↔ Laptop Pairing\n"
+        f"Bridge URL: http://{lan_ip_address()}:{port}\n"
+        f"Pairing Key: {config.get('bridge_secret', '')}\n\n"
+        "Use only on a trusted private Wi-Fi network. "
+        "The key authenticates commands with HMAC-SHA256 and is never sent directly.\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def bridge_action(action: str) -> tuple[bool, str]:
+    action = str(action or "").strip().lower()
+
+    if action == "status":
+        return True, f"Laptop bridge online. {persona_name()} is active."
+
+    if action == "open_vscode":
+        ok = open_vscode()
+        return ok, "Opening VS Code on the laptop." if ok else "VS Code was not found."
+
+    if action == "open_project":
+        project = discover_project_path()
+        if project is None:
+            return False, "Masum AI Agent project folder was not found."
+        ok = open_vscode(project)
+        return ok, "Opening Masum AI Agent project." if ok else "VS Code was not found."
+
+    if action == "open_chrome":
+        ok = open_chrome()
+        return ok, "Opening Chrome on the laptop." if ok else "Chrome was not found."
+
+    if action == "open_github":
+        ok = open_chrome("https://github.com/")
+        return ok, "Opening GitHub on the laptop." if ok else "Chrome was not found."
+
+    if action == "open_gmail":
+        ok = open_chrome("https://mail.google.com/")
+        return ok, "Opening Gmail on the laptop." if ok else "Chrome was not found."
+
+    if action == "open_chatgpt":
+        ok = open_chrome("https://chatgpt.com/")
+        return ok, "Opening ChatGPT on the laptop." if ok else "Chrome was not found."
+
+    if action == "open_downloads":
+        ok = open_folder(Path.home() / "Downloads")
+        return ok, "Opening laptop Downloads." if ok else "Downloads could not be opened."
+
+    return False, "That laptop action is not on the bridge allowlist."
+
+
+def verify_bridge_request(
+    timestamp: str,
+    nonce: str,
+    signature: str,
+    body: bytes,
+) -> bool:
+    try:
+        ts = int(timestamp)
+    except (TypeError, ValueError):
+        return False
+
+    now = int(time.time())
+    if abs(now - ts) > 60:
+        return False
+
+    if not re.fullmatch(r"[A-Za-z0-9-]{16,80}", nonce or ""):
+        return False
+
+    with BRIDGE_NONCE_LOCK:
+        expired = [key for key, value in BRIDGE_NONCES.items() if now - value > 120]
+        for key in expired:
+            BRIDGE_NONCES.pop(key, None)
+        if nonce in BRIDGE_NONCES:
+            return False
+
+    canonical = (
+        str(ts).encode("utf-8")
+        + b"\n"
+        + nonce.encode("utf-8")
+        + b"\n"
+        + body
+    )
+    expected = hmac.new(
+        str(config.get("bridge_secret") or "").encode("utf-8"),
+        canonical,
+        hashlib.sha256,
+    ).hexdigest()
+
+    if not hmac.compare_digest(expected, signature or ""):
+        return False
+
+    with BRIDGE_NONCE_LOCK:
+        BRIDGE_NONCES[nonce] = now
+    return True
+
+
+class BridgeHandler(BaseHTTPRequestHandler):
+    server_version = "MasumBridge/5.3"
+
+    def _json(self, status: int, payload: dict[str, Any]) -> None:
+        raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
+    def do_POST(self) -> None:
+        if self.path != "/action":
+            self._json(404, {"ok": False, "message": "Not found."})
+            return
+
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            length = 0
+
+        if length <= 0 or length > 4096:
+            self._json(400, {"ok": False, "message": "Invalid request size."})
+            return
+
+        body = self.rfile.read(length)
+        if not verify_bridge_request(
+            self.headers.get("X-Masum-Timestamp", ""),
+            self.headers.get("X-Masum-Nonce", ""),
+            self.headers.get("X-Masum-Signature", ""),
+            body,
+        ):
+            self._json(401, {"ok": False, "message": "Bridge authentication failed."})
+            return
+
+        try:
+            payload = json.loads(body.decode("utf-8"))
+        except Exception:
+            self._json(400, {"ok": False, "message": "Invalid JSON."})
+            return
+
+        ok, message = bridge_action(str(payload.get("action") or ""))
+        self._json(200 if ok else 400, {"ok": ok, "message": message})
+
+    def log_message(self, format: str, *args: Any) -> None:
+        logging.info("Bridge: " + format, *args)
+
+
+def bridge_server_loop() -> None:
+    if not config.get("bridge_enabled", True):
+        return
+
+    port = int(config.get("bridge_port") or BRIDGE_PORT)
+    write_bridge_pairing_info()
+
+    try:
+        server = ThreadingHTTPServer(("0.0.0.0", port), BridgeHandler)
+        server.daemon_threads = True
+        logging.info("Mobile bridge listening on port %s", port)
+        server.serve_forever()
+    except OSError:
+        logging.exception("Mobile bridge could not bind to port %s", port)
+
+
+def open_pairing_info(_icon=None, _item=None) -> None:
+    path = write_bridge_pairing_info()
+    try:
+        os.startfile(str(path))
+    except Exception:
+        logging.exception("Could not open bridge pairing info.")
 
 
 def listener_loop() -> None:
@@ -688,6 +899,10 @@ def build_menu() -> pystray.Menu:
             "Open GitHub",
             lambda _icon, _item: open_chrome("https://github.com/"),
         ),
+        pystray.MenuItem(
+            "Open Mobile Pairing Info",
+            open_pairing_info,
+        ),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Exit", exit_app),
     )
@@ -704,6 +919,13 @@ def main() -> None:
         daemon=True,
     )
     listener.start()
+
+    bridge_thread = threading.Thread(
+        target=bridge_server_loop,
+        name="MasumMobileBridge",
+        daemon=True,
+    )
+    bridge_thread.start()
 
     tray_icon = pystray.Icon(
         "MasumAIAgent",

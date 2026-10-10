@@ -1,5 +1,23 @@
 # Masum AI Agent
 
+## v5.3 — Bangla Voice + Mobile ↔ Laptop Bridge
+
+Cirilla/Geralt now supports a dedicated Android **বাংলা (bn-BD)** recognition mode plus an authenticated local bridge between the Android app and the Windows companion.
+
+```text
+হেই সিরিলা, ল্যাপটপে ভিএস কোড খোলো
+হেই সিরিলা, ল্যাপটপে ক্রোম খোলো
+হেই সিরিলা, সর্বশেষ নোটিফিকেশন পড়ো
+```
+
+Pairing uses a local Bridge URL and a generated Pairing Key. Requests are authenticated with HMAC-SHA256 + timestamp + one-time nonce. The key is not transmitted. The local HTTP payload is not encrypted, so use a trusted private Wi-Fi network.
+
+Windows tray: **Open Mobile Pairing Info**
+
+Android artifact: `Masum-AI-Agent-Android-APK-v5.3`
+
+---
+
 ## v5.2 — Voice Notifications + Smart Reply
 
 Android Cirilla / Geralt can now read active notifications and use Android direct-reply actions with a voice confirmation step.
@@ -186,7 +204,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v5.2 — Voice Notifications + Smart Reply**
+**v5.3 — Bangla Voice + Mobile ↔ Laptop Bridge**
 
 ## Roadmap
 
@@ -210,7 +228,8 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 - v4.6 — Install-and-Run Windows Companion ✅
 - v5.0 — Android Cirilla / Geralt Companion ✅
 - v5.1 — Universal Call Voice Control ✅
-- **v5.2 — Voice Notifications + Smart Reply ✅**
+- v5.2 — Voice Notifications + Smart Reply ✅
+- **v5.3 — Bangla Voice + Mobile ↔ Laptop Bridge ✅**
 
 ## Author
 

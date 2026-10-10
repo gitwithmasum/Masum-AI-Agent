@@ -84,7 +84,18 @@ public class CirillaVoiceInteractionService extends VoiceInteractionService {
         );
         intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag());
+
+        String languageMode = getSharedPreferences(
+            "masum_mobile",
+            MODE_PRIVATE
+        ).getString("voice_language", "auto");
+
+        if ("bn".equals(languageMode)) {
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "bn-BD");
+        } else if ("en".equals(languageMode)) {
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "en-US");
+        }
+
         intent.putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true);
         return intent;
     }
@@ -151,9 +162,13 @@ public class CirillaVoiceInteractionService extends VoiceInteractionService {
     private void route(String command) {
         String normalized = command.trim().toLowerCase(Locale.ROOT);
 
-        if (normalized.matches(".*(switch to|use)\\s+geralt.*")) {
+        if (normalized.matches(".*(switch to|use)\\s+geralt.*") ||
+            normalized.contains("গেরাল্ট মোড") ||
+            normalized.contains("গেরাল্ট চালু")) {
             persona = "geralt";
-        } else if (normalized.matches(".*(switch to|use)\\s+cirilla.*")) {
+        } else if (normalized.matches(".*(switch to|use)\\s+cirilla.*") ||
+            normalized.contains("সিরিলা মোড") ||
+            normalized.contains("সিরিলা চালু")) {
             persona = "cirilla";
         }
 
