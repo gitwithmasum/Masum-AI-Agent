@@ -256,3 +256,36 @@ select:focus,input:focus,textarea:focus{border-color:var(--line-strong);box-shad
   object-fit:contain;
   object-position:center;
 }
+
+
+/* v4.2 Cirilla Wake Mode */
+.wake-badge{
+  display:inline-block;
+  margin-left:6px;
+  padding:3px 6px;
+  border:1px solid var(--line);
+  border-radius:999px;
+  color:var(--muted);
+  font-size:.55rem;
+  letter-spacing:.08em;
+}
+.wake-badge.listening{
+  color:var(--cyan);
+  border-color:rgba(103,232,255,.38);
+  box-shadow:0 0 10px rgba(103,232,255,.08);
+}
+.wake-badge.awake{
+  color:var(--green);
+  border-color:rgba(121,242,178,.45);
+  box-shadow:0 0 16px rgba(121,242,178,.12);
+}
+.wake-badge.error{
+  color:var(--danger);
+  border-color:rgba(255,117,143,.4);
+}
+.wake-badge.off{
+  color:var(--muted);
+}
+.wake-toggle{
+  white-space:nowrap;
+}

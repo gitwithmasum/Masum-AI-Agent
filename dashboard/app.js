@@ -196,7 +196,7 @@ $("#refreshReports").addEventListener("click",loadReports);
 Promise.all([loadStatus(),loadAgents(),loadAutomations(),loadReports()]);
 setInterval(loadStatus,30000);
 
-// v4.1 Local Whisper Voice Agent
+// v4.2 Cirilla Wake Mode
 (function(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceBtn = document.querySelector("#voiceBtn");
@@ -204,6 +204,8 @@ setInterval(loadStatus,30000);
   const voiceState = document.querySelector("#voiceState");
   const voiceHint = document.querySelector("#voiceHint");
   const sttBadge = document.querySelector("#sttBadge");
+  const wakeBadge = document.querySelector("#wakeBadge");
+  const wakeMode = document.querySelector("#wakeMode");
   const input = document.querySelector("#chatInput");
   const form = document.querySelector("#chatForm");
   const lang = document.querySelector("#voiceLanguage");
@@ -213,6 +215,10 @@ setInterval(loadStatus,30000);
   const stopBtn = document.querySelector("#stopSpeechBtn");
   if(!voiceBtn || !voiceMiniBtn || !input || !form) return;
 
+  const WAKE_CHUNK_MS = 3500;
+  const COMMAND_RECORD_MS = 7000;
+  const WAKE_NAME = "Cirilla";
+
   let recognition = null;
   let browserListening = false;
   let recorder = null;
@@ -220,10 +226,19 @@ setInterval(loadStatus,30000);
   let chunks = [];
   let localRecording = false;
   let lastAgentText = "";
+  let wakeRecorder = null;
+  let wakeStream = null;
+  let wakeChunks = [];
+  let wakeTimer = null;
+  let wakeListening = false;
+  let wakePausedForCommand = false;
+  let commandStopTimer = null;
 
   function setState(label, mode, hint){
     voiceState.textContent = label;
-    voiceState.className = mode === "listening" ? "listening" : (mode === "error" ? "error" : "");
+    voiceState.className = mode === "listening"
+      ? "listening"
+      : (mode === "error" ? "error" : "");
     voiceBtn.classList.toggle("listening", mode === "listening");
     voiceMiniBtn.classList.toggle("listening", mode === "listening");
     voiceBtn.classList.toggle("processing", mode === "processing");
@@ -231,11 +246,17 @@ setInterval(loadStatus,30000);
     if(hint) voiceHint.textContent = hint;
   }
 
+  function setWakeBadge(mode, text){
+    wakeBadge.textContent = text;
+    wakeBadge.className = "wake-badge " + mode;
+  }
+
   function savePrefs(){
     localStorage.setItem("masum.voice.lang", lang.value);
     localStorage.setItem("masum.voice.engine", engine.value);
     localStorage.setItem("masum.voice.auto", autoSend.checked ? "1" : "0");
     localStorage.setItem("masum.voice.speak", speakReplies.checked ? "1" : "0");
+    localStorage.setItem("masum.voice.wake", wakeMode.checked ? "1" : "0");
   }
 
   function loadPrefs(){
@@ -243,9 +264,11 @@ setInterval(loadStatus,30000);
     const savedEngine = localStorage.getItem("masum.voice.engine");
     if(savedLang) lang.value = savedLang;
     if(savedEngine) engine.value = savedEngine;
+
     const savedAuto = localStorage.getItem("masum.voice.auto");
     autoSend.checked = savedAuto === null ? true : savedAuto === "1";
     speakReplies.checked = localStorage.getItem("masum.voice.speak") === "1";
+    wakeMode.checked = localStorage.getItem("masum.voice.wake") === "1";
   }
 
   function selectedLanguage(){
@@ -256,43 +279,51 @@ setInterval(loadStatus,30000);
 
   async function refreshSttStatus(){
     try{
-      const response=await fetch("/api/stt/status");
-      const data=await response.json();
-      const online=Boolean(data.online);
-      sttBadge.textContent=online ? "WHISPER ONLINE" : "WHISPER OFF";
-      sttBadge.className="stt-badge "+(online ? "online" : "offline");
+      const response = await fetch("/api/stt/status");
+      const data = await response.json();
+      const online = Boolean(data.online);
+      sttBadge.textContent = online ? "WHISPER ONLINE" : "WHISPER OFF";
+      sttBadge.className = "stt-badge " + (online ? "online" : "offline");
       return online;
     }catch(error){
-      sttBadge.textContent="WHISPER OFF";
-      sttBadge.className="stt-badge offline";
+      sttBadge.textContent = "WHISPER OFF";
+      sttBadge.className = "stt-badge offline";
       return false;
     }
   }
 
   function cleanSpeech(text){
-    return String(text||"")
-      .replace(/https?:\/\/\S+/g," link ")
-      .replace(/[#*_>~]/g," ")
-      .replace(/\s+/g," ")
+    return String(text || "")
+      .replace(/https?:\/\/\S+/g, " link ")
+      .replace(/[#*_>~]/g, " ")
+      .replace(/\s+/g, " ")
       .trim();
   }
 
   function speak(text){
-    if(!("speechSynthesis" in window) || !speakReplies.checked) return;
-    const clean=cleanSpeech(text);
-    if(!clean) return;
+    if(!("speechSynthesis" in window) || !speakReplies.checked){
+      resumeWakeAfterResponse();
+      return;
+    }
+    const clean = cleanSpeech(text);
+    if(!clean){
+      resumeWakeAfterResponse();
+      return;
+    }
+
+    stopWakeListener();
     window.speechSynthesis.cancel();
-    const utter=new SpeechSynthesisUtterance(clean.slice(0,1800));
-    utter.lang=lang.value;
-    utter.rate=lang.value.indexOf("bn")===0 ? 0.95 : 1;
-    setState("SPEAKING","ready","Masum AI is speaking.");
-    utter.onend=function(){
-      setState("READY","ready",engine.value==="local"
-        ? "Local Whisper ready. Click MIC to record."
-        : "Browser Speech ready. Click MIC to speak.");
+    const utter = new SpeechSynthesisUtterance(clean.slice(0,1800));
+    utter.lang = lang.value;
+    utter.rate = lang.value.indexOf("bn") === 0 ? 0.95 : 1;
+    setState("SPEAKING","ready","Cirilla is speaking.");
+    utter.onend = function(){
+      setState("READY","ready","Say Hey Cirilla, or use MIC.");
+      resumeWakeAfterResponse();
     };
-    utter.onerror=function(){
+    utter.onerror = function(){
       setState("TTS ERROR","error","Browser voice output failed.");
+      resumeWakeAfterResponse();
     };
     window.speechSynthesis.speak(utter);
   }
@@ -300,12 +331,24 @@ setInterval(loadStatus,30000);
   function stopTracks(){
     if(stream){
       stream.getTracks().forEach(function(track){track.stop();});
-      stream=null;
+      stream = null;
+    }
+  }
+
+  function stopWakeTracks(){
+    if(wakeStream){
+      wakeStream.getTracks().forEach(function(track){track.stop();});
+      wakeStream = null;
     }
   }
 
   function preferredMimeType(){
-    const types=["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/ogg"];
+    const types = [
+      "audio/webm;codecs=opus",
+      "audio/webm",
+      "audio/ogg;codecs=opus",
+      "audio/ogg"
+    ];
     for(const type of types){
       if(window.MediaRecorder && MediaRecorder.isTypeSupported(type)) return type;
     }
@@ -315,115 +358,335 @@ setInterval(loadStatus,30000);
   async function transcribeLocal(blob){
     setState("TRANSCRIBING","processing","Local Whisper is decoding your speech…");
     try{
-      const response=await fetch(
-        "/api/stt/transcribe?language="+encodeURIComponent(selectedLanguage()),
-        {method:"POST",headers:{"Content-Type":blob.type||"audio/webm"},body:blob}
+      const response = await fetch(
+        "/api/stt/transcribe?language=" + encodeURIComponent(selectedLanguage()),
+        {
+          method:"POST",
+          headers:{"Content-Type":blob.type || "audio/webm"},
+          body:blob
+        }
       );
-      let data={};
-      try{data=await response.json();}catch(error){}
-      if(!response.ok) throw new Error(data.detail||"Local transcription failed.");
-      const text=String(data.text||"").trim();
+      let data = {};
+      try{ data = await response.json(); }catch(error){}
+      if(!response.ok) throw new Error(data.detail || "Local transcription failed.");
+
+      const text = String(data.text || "").trim();
       if(!text) throw new Error("Whisper did not detect clear speech.");
-      input.value=text;
-      const detected=data.language ? ("Detected "+data.language) : "Local transcription";
-      setState("HEARD","ready",detected+": "+text);
+
+      input.value = text;
+      const detected = data.language ? ("Detected " + data.language) : "Local transcription";
+      setState("HEARD","ready",detected + ": " + text);
+
       if(autoSend.checked){
-        setTimeout(function(){form.requestSubmit();},180);
+        wakePausedForCommand = true;
+        setTimeout(function(){ form.requestSubmit(); },180);
+      }else{
+        resumeWakeAfterResponse();
       }
     }catch(error){
-      setState("STT ERROR","error",error.message||"Local Whisper failed.");
+      setState("STT ERROR","error",error.message || "Local Whisper failed.");
+      resumeWakeAfterResponse();
     }
   }
 
-  async function startLocal(){
+  async function startLocal(autoStopMs=0){
+    stopWakeListener();
+
     if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder){
       setState("UNSUPPORTED","error","MediaRecorder microphone capture is unavailable.");
       return;
     }
-    const online=await refreshSttStatus();
+
+    const online = await refreshSttStatus();
     if(!online){
-      setState("WHISPER OFF","error","Start local_stt_server.py, then try again. Browser mode remains available.");
+      setState("WHISPER OFF","error","Start local_stt_server.py, then try again.");
       return;
     }
+
     try{
       if("speechSynthesis" in window) window.speechSynthesis.cancel();
-      stream=await navigator.mediaDevices.getUserMedia({
-        audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio:{
+          echoCancellation:true,
+          noiseSuppression:true,
+          autoGainControl:true
+        }
       });
-      chunks=[];
-      const mimeType=preferredMimeType();
-      recorder=mimeType ? new MediaRecorder(stream,{mimeType:mimeType}) : new MediaRecorder(stream);
-      recorder.ondataavailable=function(event){
+      chunks = [];
+      const mimeType = preferredMimeType();
+      recorder = mimeType
+        ? new MediaRecorder(stream,{mimeType:mimeType})
+        : new MediaRecorder(stream);
+
+      recorder.ondataavailable = function(event){
         if(event.data && event.data.size) chunks.push(event.data);
       };
-      recorder.onstop=async function(){
-        localRecording=false;
+
+      recorder.onstop = async function(){
+        localRecording = false;
+        clearTimeout(commandStopTimer);
         voiceBtn.classList.remove("listening");
         voiceMiniBtn.classList.remove("listening");
-        const type=recorder && recorder.mimeType ? recorder.mimeType : "audio/webm";
-        const blob=new Blob(chunks,{type:type});
-        chunks=[];
+
+        const type = recorder && recorder.mimeType
+          ? recorder.mimeType
+          : "audio/webm";
+        const blob = new Blob(chunks,{type:type});
+        chunks = [];
         stopTracks();
-        if(blob.size<800){
+
+        if(blob.size < 800){
           setState("NO AUDIO","error","Recording was too short. Try again.");
+          resumeWakeAfterResponse();
           return;
         }
         await transcribeLocal(blob);
       };
+
       recorder.start(250);
-      localRecording=true;
-      setState("LOCAL LISTENING","listening","Speak clearly, then click MIC again to transcribe.");
+      localRecording = true;
+      setState(
+        autoStopMs ? "CIRILLA AWAKE" : "LOCAL LISTENING",
+        "listening",
+        autoStopMs
+          ? "I’m listening for your command…"
+          : "Speak clearly, then click MIC again."
+      );
+
+      if(autoStopMs){
+        commandStopTimer = setTimeout(function(){
+          if(localRecording && recorder && recorder.state !== "inactive"){
+            recorder.stop();
+          }
+        }, autoStopMs);
+      }
     }catch(error){
       stopTracks();
-      localRecording=false;
-      setState("MIC ERROR","error",error.message||"Could not access microphone.");
+      localRecording = false;
+      setState("MIC ERROR","error",error.message || "Could not access microphone.");
+      resumeWakeAfterResponse();
     }
   }
 
   function stopLocal(){
-    if(recorder && recorder.state!=="inactive") recorder.stop();
+    clearTimeout(commandStopTimer);
+    if(recorder && recorder.state !== "inactive") recorder.stop();
+  }
+
+  function extractCommand(text){
+    let value = String(text || "").trim();
+    const patterns = [
+      /hey\s+cirilla[\s,.:;-]*/i,
+      /cirilla[\s,.:;-]*/i,
+      /hey\s+sirilla[\s,.:;-]*/i,
+      /sirilla[\s,.:;-]*/i,
+      /cirila[\s,.:;-]*/i,
+      /হেই\s+সিরিলা[\s,.:;-]*/i,
+      /সিরিলা[\s,.:;-]*/i
+    ];
+
+    for(const pattern of patterns){
+      if(pattern.test(value)){
+        value = value.replace(pattern,"").trim();
+        break;
+      }
+    }
+    return value;
+  }
+
+  async function sendWakeChunk(blob){
+    try{
+      const response = await fetch(
+        "/api/stt/wake?language=auto",
+        {
+          method:"POST",
+          headers:{"Content-Type":blob.type || "audio/webm"},
+          body:blob
+        }
+      );
+      let data = {};
+      try{ data = await response.json(); }catch(error){}
+      if(!response.ok) return;
+
+      if(data.wake_detected){
+        const heard = String(data.text || "").trim();
+        const command = extractCommand(heard);
+
+        stopWakeListener();
+        setWakeBadge("awake","CIRILLA AWAKE");
+        setState("CIRILLA AWAKE","listening","Wake phrase detected.");
+
+        if(command.length >= 2){
+          input.value = command;
+          wakePausedForCommand = true;
+          setTimeout(function(){ form.requestSubmit(); },180);
+        }else{
+          if("speechSynthesis" in window){
+            window.speechSynthesis.cancel();
+            const ack = new SpeechSynthesisUtterance("Yes?");
+            ack.lang = "en-US";
+            ack.rate = 1;
+            window.speechSynthesis.speak(ack);
+          }
+          setTimeout(function(){
+            startLocal(COMMAND_RECORD_MS);
+          },450);
+        }
+      }
+    }catch(error){
+      setWakeBadge("error","CIRILLA ERROR");
+    }
+  }
+
+  async function recordWakeChunk(){
+    if(!wakeMode.checked || wakePausedForCommand || wakeListening) return;
+    if(!navigator.mediaDevices || !window.MediaRecorder) return;
+
+    const online = await refreshSttStatus();
+    if(!online){
+      setWakeBadge("error","CIRILLA OFF");
+      return;
+    }
+
+    try{
+      wakeStream = await navigator.mediaDevices.getUserMedia({
+        audio:{
+          echoCancellation:true,
+          noiseSuppression:true,
+          autoGainControl:true
+        }
+      });
+      wakeChunks = [];
+      const mimeType = preferredMimeType();
+      wakeRecorder = mimeType
+        ? new MediaRecorder(wakeStream,{mimeType:mimeType})
+        : new MediaRecorder(wakeStream);
+      wakeListening = true;
+
+      wakeRecorder.ondataavailable = function(event){
+        if(event.data && event.data.size) wakeChunks.push(event.data);
+      };
+
+      wakeRecorder.onstop = async function(){
+        wakeListening = false;
+        const type = wakeRecorder && wakeRecorder.mimeType
+          ? wakeRecorder.mimeType
+          : "audio/webm";
+        const blob = new Blob(wakeChunks,{type:type});
+        wakeChunks = [];
+        stopWakeTracks();
+
+        if(blob.size >= 800 && wakeMode.checked && !wakePausedForCommand){
+          await sendWakeChunk(blob);
+        }
+
+        if(wakeMode.checked && !wakePausedForCommand){
+          wakeTimer = setTimeout(recordWakeChunk,180);
+        }
+      };
+
+      wakeRecorder.start(250);
+      setWakeBadge("listening","CIRILLA LISTENING");
+      wakeTimer = setTimeout(function(){
+        if(wakeRecorder && wakeRecorder.state !== "inactive"){
+          wakeRecorder.stop();
+        }
+      },WAKE_CHUNK_MS);
+    }catch(error){
+      wakeListening = false;
+      stopWakeTracks();
+      setWakeBadge("error","CIRILLA ERROR");
+      setState("WAKE ERROR","error",error.message || "Wake microphone failed.");
+    }
+  }
+
+  function startWakeMode(){
+    if(!wakeMode.checked) return;
+    if(engine.value !== "local"){
+      engine.value = "local";
+      savePrefs();
+    }
+    wakePausedForCommand = false;
+    setWakeBadge("listening","CIRILLA LISTENING");
+    recordWakeChunk();
+  }
+
+  function stopWakeListener(){
+    clearTimeout(wakeTimer);
+    if(wakeRecorder && wakeRecorder.state !== "inactive"){
+      const handler = wakeRecorder.onstop;
+      wakeRecorder.onstop = function(){
+        wakeListening = false;
+        wakeChunks = [];
+        stopWakeTracks();
+      };
+      try{ wakeRecorder.stop(); }catch(error){
+        wakeRecorder.onstop = handler;
+      }
+    }else{
+      wakeListening = false;
+      stopWakeTracks();
+    }
+  }
+
+  function resumeWakeAfterResponse(){
+    if(!wakeMode.checked) return;
+    wakePausedForCommand = false;
+    setTimeout(startWakeMode,500);
   }
 
   function setupBrowser(){
     if(!SR) return;
-    recognition=new SR();
-    recognition.continuous=false;
-    recognition.interimResults=true;
-    recognition.maxAlternatives=1;
-    recognition.lang=lang.value;
-    recognition.onstart=function(){
-      browserListening=true;
+    recognition = new SR();
+    recognition.continuous = false;
+    recognition.interimResults = true;
+    recognition.maxAlternatives = 1;
+    recognition.lang = lang.value;
+
+    recognition.onstart = function(){
+      browserListening = true;
       setState("BROWSER LISTENING","listening","Speak now…");
     };
-    recognition.onresult=function(event){
-      let interim="";
-      let finalText="";
+
+    recognition.onresult = function(event){
+      let interim = "";
+      let finalText = "";
       for(let i=event.resultIndex;i<event.results.length;i++){
-        const text=event.results[i][0].transcript;
-        if(event.results[i].isFinal) finalText+=text;
-        else interim+=text;
+        const text = event.results[i][0].transcript;
+        if(event.results[i].isFinal) finalText += text;
+        else interim += text;
       }
-      const transcript=(finalText||interim).trim();
+      const transcript = (finalText || interim).trim();
       if(transcript){
-        input.value=transcript;
-        setState(finalText ? "HEARD" : "BROWSER LISTENING",finalText ? "ready" : "listening",transcript);
+        input.value = transcript;
+        setState(
+          finalText ? "HEARD" : "BROWSER LISTENING",
+          finalText ? "ready" : "listening",
+          transcript
+        );
       }
       if(finalText && autoSend.checked){
-        setTimeout(function(){form.requestSubmit();},180);
+        setTimeout(function(){ form.requestSubmit(); },180);
       }
     };
-    recognition.onerror=function(event){
-      browserListening=false;
-      const errors={
+
+    recognition.onerror = function(event){
+      browserListening = false;
+      const errors = {
         "not-allowed":"Microphone permission was blocked.",
         "audio-capture":"No working microphone was found.",
         "no-speech":"No speech was detected.",
         "network":"Browser speech service had a network error."
       };
-      setState("VOICE ERROR","error",errors[event.error]||("Speech error: "+event.error));
+      setState(
+        "VOICE ERROR",
+        "error",
+        errors[event.error] || ("Speech error: " + event.error)
+      );
     };
-    recognition.onend=function(){
-      browserListening=false;
+
+    recognition.onend = function(){
+      browserListening = false;
       voiceBtn.classList.remove("listening");
       voiceMiniBtn.classList.remove("listening");
     };
@@ -431,20 +694,22 @@ setInterval(loadStatus,30000);
 
   function toggleBrowser(){
     if(!recognition){
-      setState("UNSUPPORTED","error","Browser Speech is unavailable. Use Local Whisper.");
+      setState("UNSUPPORTED","error","Browser Speech is unavailable.");
       return;
     }
     if(browserListening){
-      try{recognition.stop();}catch(error){}
+      try{ recognition.stop(); }catch(error){}
       return;
     }
-    recognition.lang=lang.value;
-    try{recognition.start();}
-    catch(error){setState("VOICE ERROR","error",error.message||"Could not start browser speech.");}
+    recognition.lang = lang.value;
+    try{ recognition.start(); }
+    catch(error){
+      setState("VOICE ERROR","error",error.message || "Could not start browser speech.");
+    }
   }
 
   async function toggleVoice(){
-    if(engine.value==="local"){
+    if(engine.value === "local"){
       if(localRecording) stopLocal();
       else await startLocal();
     }else{
@@ -453,13 +718,16 @@ setInterval(loadStatus,30000);
   }
 
   function stopAll(){
+    clearTimeout(commandStopTimer);
+    stopWakeListener();
     if(localRecording) stopLocal();
     if(recognition && browserListening){
-      try{recognition.stop();}catch(error){}
+      try{ recognition.stop(); }catch(error){}
     }
     if("speechSynthesis" in window) window.speechSynthesis.cancel();
     stopTracks();
     setState("READY","ready","Voice stopped.");
+    setWakeBadge("off","CIRILLA OFF");
   }
 
   loadPrefs();
@@ -468,16 +736,43 @@ setInterval(loadStatus,30000);
   setInterval(refreshSttStatus,15000);
 
   lang.addEventListener("change",function(){
-    if(recognition) recognition.lang=lang.value;
+    if(recognition) recognition.lang = lang.value;
     savePrefs();
   });
+
   engine.addEventListener("change",function(){
-    stopAll();
+    stopWakeListener();
+    stopTracks();
     savePrefs();
-    setState("READY","ready",engine.value==="local"
-      ? "Local Whisper: click MIC to start, click again to transcribe."
-      : "Browser Speech: click MIC and speak.");
+    if(wakeMode.checked && engine.value !== "local"){
+      wakeMode.checked = false;
+      savePrefs();
+      setWakeBadge("off","CIRILLA OFF");
+    }
+    setState(
+      "READY",
+      "ready",
+      engine.value === "local"
+        ? "Local Whisper ready. Say Hey Cirilla with Wake Mode on."
+        : "Browser Speech ready. Click MIC and speak."
+    );
   });
+
+  wakeMode.addEventListener("change",function(){
+    savePrefs();
+    if(wakeMode.checked){
+      engine.value = "local";
+      savePrefs();
+      startWakeMode();
+      setState("WAKE MODE","ready","Say Hey Cirilla or Cirilla.");
+    }else{
+      wakePausedForCommand = false;
+      stopWakeListener();
+      setWakeBadge("off","CIRILLA OFF");
+      setState("READY","ready","Wake Mode is off.");
+    }
+  });
+
   autoSend.addEventListener("change",savePrefs);
   speakReplies.addEventListener("change",savePrefs);
   stopBtn.addEventListener("click",stopAll);
@@ -485,27 +780,46 @@ setInterval(loadStatus,30000);
   voiceMiniBtn.addEventListener("click",toggleVoice);
 
   document.addEventListener("keydown",function(event){
-    if(event.ctrlKey && event.code==="Space"){
+    if(event.ctrlKey && event.code === "Space"){
       event.preventDefault();
       toggleVoice();
     }
   });
 
-  const messages=document.querySelector("#messages");
+  const messages = document.querySelector("#messages");
   if(messages && "MutationObserver" in window){
-    const observer=new MutationObserver(function(){
-      const nodes=messages.querySelectorAll(".agent-message p");
+    const observer = new MutationObserver(function(){
+      const nodes = messages.querySelectorAll(".agent-message p");
       if(!nodes.length) return;
-      const text=nodes[nodes.length-1].textContent||"";
-      if(text && text!==lastAgentText && text.indexOf("Routing request")!==0){
-        lastAgentText=text;
-        speak(text);
+      const text = nodes[nodes.length - 1].textContent || "";
+      if(
+        text &&
+        text !== lastAgentText &&
+        text.indexOf("Routing request") !== 0
+      ){
+        lastAgentText = text;
+        if(wakePausedForCommand){
+          if(speakReplies.checked) speak(text);
+          else resumeWakeAfterResponse();
+        }else{
+          speak(text);
+        }
       }
     });
     observer.observe(messages,{childList:true,subtree:true});
   }
 
-  setState("READY","ready",engine.value==="local"
-    ? "Local Whisper: click MIC to start, click again to transcribe."
-    : "Browser Speech: click MIC and speak.");
+  setState(
+    "READY",
+    "ready",
+    wakeMode.checked
+      ? "Say Hey Cirilla or Cirilla."
+      : "Local Whisper ready. Enable Wake: Cirilla for hands-free mode."
+  );
+
+  if(wakeMode.checked){
+    setTimeout(startWakeMode,800);
+  }else{
+    setWakeBadge("off","CIRILLA OFF");
+  }
 })();

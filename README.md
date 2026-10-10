@@ -1,4 +1,53 @@
-# Masum AI Agent\n\n<p align="center"><img src="dashboard/masum-ai-agent-logo.webp" alt="Masum AI Agent Logo" width="220"></p>
+# Masum AI Agent
+
+## v4.2 — Cirilla Wake Mode
+
+The project brand remains **Masum AI Agent**, while the hands-free voice persona/wake name is **Cirilla**.
+
+Wake phrases:
+
+```text
+Hey Cirilla
+Cirilla
+সিরিলা
+হেই সিরিলা
+```
+
+Wake Mode is **OFF by default**. Turn on **Wake: Cirilla** in Neural Chat when you want continuous local listening.
+
+Examples:
+
+```text
+Hey Cirilla, আমার GitHub recent commit দেখাও
+Cirilla, find recent AI agent papers
+```
+
+If you say only `Hey Cirilla`, Cirilla wakes and automatically records your next command for about 7 seconds.
+
+Wake detection uses the local Faster-Whisper service. A lightweight `tiny` model is used for wake detection, while the `small` multilingual model remains the main speech-to-text model.
+
+### Run v4.2
+
+Terminal 1:
+
+```powershell
+.\.venv-stt\Scripts\python.exe local_stt_server.py
+```
+
+Terminal 2:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python dashboard.py
+```
+
+Then open Neural Chat, select **Local Whisper**, and enable **Wake: Cirilla**.
+
+Wake Mode continuously samples microphone audio locally while enabled, so it uses more CPU than manual MIC mode. Turn it off when you do not need hands-free listening.
+
+---
+
+<p align="center"><img src="dashboard/masum-ai-agent-logo.webp" alt="Masum AI Agent Logo" width="220"></p>
 
 ## v4.1 — Fully Local Speech-to-Text
 
