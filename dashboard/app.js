@@ -196,23 +196,29 @@ $("#refreshReports").addEventListener("click",loadReports);
 Promise.all([loadStatus(),loadAgents(),loadAutomations(),loadReports()]);
 setInterval(loadStatus,30000);
 
-// v4.0 Voice Agent
+// v4.1 Local Whisper Voice Agent
 (function(){
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
   const voiceBtn = document.querySelector("#voiceBtn");
   const voiceMiniBtn = document.querySelector("#voiceMiniBtn");
   const voiceState = document.querySelector("#voiceState");
   const voiceHint = document.querySelector("#voiceHint");
-  const voiceConsole = document.querySelector("#voiceConsole");
+  const sttBadge = document.querySelector("#sttBadge");
   const input = document.querySelector("#chatInput");
   const form = document.querySelector("#chatForm");
   const lang = document.querySelector("#voiceLanguage");
+  const engine = document.querySelector("#voiceEngine");
   const autoSend = document.querySelector("#voiceAutoSend");
   const speakReplies = document.querySelector("#speakReplies");
   const stopBtn = document.querySelector("#stopSpeechBtn");
   if(!voiceBtn || !voiceMiniBtn || !input || !form) return;
+
   let recognition = null;
-  let listening = false;
+  let browserListening = false;
+  let recorder = null;
+  let stream = null;
+  let chunks = [];
+  let localRecording = false;
   let lastAgentText = "";
 
   function setState(label, mode, hint){
@@ -220,108 +226,286 @@ setInterval(loadStatus,30000);
     voiceState.className = mode === "listening" ? "listening" : (mode === "error" ? "error" : "");
     voiceBtn.classList.toggle("listening", mode === "listening");
     voiceMiniBtn.classList.toggle("listening", mode === "listening");
+    voiceBtn.classList.toggle("processing", mode === "processing");
+    voiceMiniBtn.classList.toggle("processing", mode === "processing");
     if(hint) voiceHint.textContent = hint;
   }
 
   function savePrefs(){
     localStorage.setItem("masum.voice.lang", lang.value);
+    localStorage.setItem("masum.voice.engine", engine.value);
     localStorage.setItem("masum.voice.auto", autoSend.checked ? "1" : "0");
     localStorage.setItem("masum.voice.speak", speakReplies.checked ? "1" : "0");
   }
 
   function loadPrefs(){
     const savedLang = localStorage.getItem("masum.voice.lang");
+    const savedEngine = localStorage.getItem("masum.voice.engine");
     if(savedLang) lang.value = savedLang;
+    if(savedEngine) engine.value = savedEngine;
     const savedAuto = localStorage.getItem("masum.voice.auto");
     autoSend.checked = savedAuto === null ? true : savedAuto === "1";
     speakReplies.checked = localStorage.getItem("masum.voice.speak") === "1";
   }
 
+  function selectedLanguage(){
+    if(lang.value.indexOf("bn") === 0) return "bn";
+    if(lang.value.indexOf("en") === 0) return "en";
+    return "auto";
+  }
+
+  async function refreshSttStatus(){
+    try{
+      const response=await fetch("/api/stt/status");
+      const data=await response.json();
+      const online=Boolean(data.online);
+      sttBadge.textContent=online ? "WHISPER ONLINE" : "WHISPER OFF";
+      sttBadge.className="stt-badge "+(online ? "online" : "offline");
+      return online;
+    }catch(error){
+      sttBadge.textContent="WHISPER OFF";
+      sttBadge.className="stt-badge offline";
+      return false;
+    }
+  }
+
   function cleanSpeech(text){
-    return String(text || "").replace(/https?:\/\/\S+/g, " link ").replace(/[#*_>~]/g, " ").replace(/\s+/g, " ").trim();
+    return String(text||"")
+      .replace(/https?:\/\/\S+/g," link ")
+      .replace(/[#*_>~]/g," ")
+      .replace(/\s+/g," ")
+      .trim();
   }
 
   function speak(text){
     if(!("speechSynthesis" in window) || !speakReplies.checked) return;
-    const clean = cleanSpeech(text);
+    const clean=cleanSpeech(text);
     if(!clean) return;
     window.speechSynthesis.cancel();
-    const utter = new SpeechSynthesisUtterance(clean.slice(0, 1800));
-    utter.lang = lang.value;
-    utter.rate = lang.value.indexOf("bn") === 0 ? 0.95 : 1;
-    setState("SPEAKING", "ready", "Masum AI is speaking.");
-    utter.onend = function(){ setState("READY", "ready", "Click MIC or press Ctrl + Space and speak."); };
-    utter.onerror = function(){ setState("TTS ERROR", "error", "Browser voice output failed."); };
+    const utter=new SpeechSynthesisUtterance(clean.slice(0,1800));
+    utter.lang=lang.value;
+    utter.rate=lang.value.indexOf("bn")===0 ? 0.95 : 1;
+    setState("SPEAKING","ready","Masum AI is speaking.");
+    utter.onend=function(){
+      setState("READY","ready",engine.value==="local"
+        ? "Local Whisper ready. Click MIC to record."
+        : "Browser Speech ready. Click MIC to speak.");
+    };
+    utter.onerror=function(){
+      setState("TTS ERROR","error","Browser voice output failed.");
+    };
     window.speechSynthesis.speak(utter);
   }
 
-  function toggle(){
-    if(!recognition) return;
+  function stopTracks(){
+    if(stream){
+      stream.getTracks().forEach(function(track){track.stop();});
+      stream=null;
+    }
+  }
+
+  function preferredMimeType(){
+    const types=["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/ogg"];
+    for(const type of types){
+      if(window.MediaRecorder && MediaRecorder.isTypeSupported(type)) return type;
+    }
+    return "";
+  }
+
+  async function transcribeLocal(blob){
+    setState("TRANSCRIBING","processing","Local Whisper is decoding your speech…");
+    try{
+      const response=await fetch(
+        "/api/stt/transcribe?language="+encodeURIComponent(selectedLanguage()),
+        {method:"POST",headers:{"Content-Type":blob.type||"audio/webm"},body:blob}
+      );
+      let data={};
+      try{data=await response.json();}catch(error){}
+      if(!response.ok) throw new Error(data.detail||"Local transcription failed.");
+      const text=String(data.text||"").trim();
+      if(!text) throw new Error("Whisper did not detect clear speech.");
+      input.value=text;
+      const detected=data.language ? ("Detected "+data.language) : "Local transcription";
+      setState("HEARD","ready",detected+": "+text);
+      if(autoSend.checked){
+        setTimeout(function(){form.requestSubmit();},180);
+      }
+    }catch(error){
+      setState("STT ERROR","error",error.message||"Local Whisper failed.");
+    }
+  }
+
+  async function startLocal(){
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.MediaRecorder){
+      setState("UNSUPPORTED","error","MediaRecorder microphone capture is unavailable.");
+      return;
+    }
+    const online=await refreshSttStatus();
+    if(!online){
+      setState("WHISPER OFF","error","Start local_stt_server.py, then try again. Browser mode remains available.");
+      return;
+    }
+    try{
+      if("speechSynthesis" in window) window.speechSynthesis.cancel();
+      stream=await navigator.mediaDevices.getUserMedia({
+        audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true}
+      });
+      chunks=[];
+      const mimeType=preferredMimeType();
+      recorder=mimeType ? new MediaRecorder(stream,{mimeType:mimeType}) : new MediaRecorder(stream);
+      recorder.ondataavailable=function(event){
+        if(event.data && event.data.size) chunks.push(event.data);
+      };
+      recorder.onstop=async function(){
+        localRecording=false;
+        voiceBtn.classList.remove("listening");
+        voiceMiniBtn.classList.remove("listening");
+        const type=recorder && recorder.mimeType ? recorder.mimeType : "audio/webm";
+        const blob=new Blob(chunks,{type:type});
+        chunks=[];
+        stopTracks();
+        if(blob.size<800){
+          setState("NO AUDIO","error","Recording was too short. Try again.");
+          return;
+        }
+        await transcribeLocal(blob);
+      };
+      recorder.start(250);
+      localRecording=true;
+      setState("LOCAL LISTENING","listening","Speak clearly, then click MIC again to transcribe.");
+    }catch(error){
+      stopTracks();
+      localRecording=false;
+      setState("MIC ERROR","error",error.message||"Could not access microphone.");
+    }
+  }
+
+  function stopLocal(){
+    if(recorder && recorder.state!=="inactive") recorder.stop();
+  }
+
+  function setupBrowser(){
+    if(!SR) return;
+    recognition=new SR();
+    recognition.continuous=false;
+    recognition.interimResults=true;
+    recognition.maxAlternatives=1;
+    recognition.lang=lang.value;
+    recognition.onstart=function(){
+      browserListening=true;
+      setState("BROWSER LISTENING","listening","Speak now…");
+    };
+    recognition.onresult=function(event){
+      let interim="";
+      let finalText="";
+      for(let i=event.resultIndex;i<event.results.length;i++){
+        const text=event.results[i][0].transcript;
+        if(event.results[i].isFinal) finalText+=text;
+        else interim+=text;
+      }
+      const transcript=(finalText||interim).trim();
+      if(transcript){
+        input.value=transcript;
+        setState(finalText ? "HEARD" : "BROWSER LISTENING",finalText ? "ready" : "listening",transcript);
+      }
+      if(finalText && autoSend.checked){
+        setTimeout(function(){form.requestSubmit();},180);
+      }
+    };
+    recognition.onerror=function(event){
+      browserListening=false;
+      const errors={
+        "not-allowed":"Microphone permission was blocked.",
+        "audio-capture":"No working microphone was found.",
+        "no-speech":"No speech was detected.",
+        "network":"Browser speech service had a network error."
+      };
+      setState("VOICE ERROR","error",errors[event.error]||("Speech error: "+event.error));
+    };
+    recognition.onend=function(){
+      browserListening=false;
+      voiceBtn.classList.remove("listening");
+      voiceMiniBtn.classList.remove("listening");
+    };
+  }
+
+  function toggleBrowser(){
+    if(!recognition){
+      setState("UNSUPPORTED","error","Browser Speech is unavailable. Use Local Whisper.");
+      return;
+    }
+    if(browserListening){
+      try{recognition.stop();}catch(error){}
+      return;
+    }
+    recognition.lang=lang.value;
+    try{recognition.start();}
+    catch(error){setState("VOICE ERROR","error",error.message||"Could not start browser speech.");}
+  }
+
+  async function toggleVoice(){
+    if(engine.value==="local"){
+      if(localRecording) stopLocal();
+      else await startLocal();
+    }else{
+      toggleBrowser();
+    }
+  }
+
+  function stopAll(){
+    if(localRecording) stopLocal();
+    if(recognition && browserListening){
+      try{recognition.stop();}catch(error){}
+    }
     if("speechSynthesis" in window) window.speechSynthesis.cancel();
-    if(listening){ try{ recognition.stop(); }catch(e){} return; }
-    recognition.lang = lang.value;
-    try{ recognition.start(); }catch(e){ setState("VOICE ERROR", "error", e.message || "Could not start microphone."); }
+    stopTracks();
+    setState("READY","ready","Voice stopped.");
   }
 
   loadPrefs();
-  lang.addEventListener("change", savePrefs);
-  autoSend.addEventListener("change", savePrefs);
-  speakReplies.addEventListener("change", savePrefs);
-  stopBtn.addEventListener("click", function(){
-    if(recognition && listening){ try{ recognition.stop(); }catch(e){} }
-    if("speechSynthesis" in window) window.speechSynthesis.cancel();
-    setState("READY", "ready", "Voice stopped.");
+  setupBrowser();
+  refreshSttStatus();
+  setInterval(refreshSttStatus,15000);
+
+  lang.addEventListener("change",function(){
+    if(recognition) recognition.lang=lang.value;
+    savePrefs();
+  });
+  engine.addEventListener("change",function(){
+    stopAll();
+    savePrefs();
+    setState("READY","ready",engine.value==="local"
+      ? "Local Whisper: click MIC to start, click again to transcribe."
+      : "Browser Speech: click MIC and speak.");
+  });
+  autoSend.addEventListener("change",savePrefs);
+  speakReplies.addEventListener("change",savePrefs);
+  stopBtn.addEventListener("click",stopAll);
+  voiceBtn.addEventListener("click",toggleVoice);
+  voiceMiniBtn.addEventListener("click",toggleVoice);
+
+  document.addEventListener("keydown",function(event){
+    if(event.ctrlKey && event.code==="Space"){
+      event.preventDefault();
+      toggleVoice();
+    }
   });
 
-  if(!SR){
-    voiceBtn.disabled = true;
-    voiceMiniBtn.disabled = true;
-    voiceConsole.classList.add("voice-unsupported");
-    setState("UNSUPPORTED", "error", "Speech recognition is unavailable. Try Chrome or Edge.");
-  }else{
-    recognition = new SR();
-    recognition.continuous = false;
-    recognition.interimResults = true;
-    recognition.maxAlternatives = 1;
-    recognition.lang = lang.value;
-    recognition.onstart = function(){ listening = true; setState("LISTENING", "listening", "Speak now…"); };
-    recognition.onresult = function(event){
-      let interim = "";
-      let finalText = "";
-      for(let i=event.resultIndex;i<event.results.length;i++){
-        const t = event.results[i][0].transcript;
-        if(event.results[i].isFinal) finalText += t; else interim += t;
-      }
-      const transcript = (finalText || interim).trim();
-      if(transcript){ input.value = transcript; setState(finalText ? "HEARD" : "LISTENING", finalText ? "ready" : "listening", transcript); }
-      if(finalText && autoSend.checked){ setTimeout(function(){ form.requestSubmit(); }, 180); }
-    };
-    recognition.onerror = function(event){
-      listening = false;
-      const errors = {"not-allowed":"Microphone permission was blocked.","audio-capture":"No working microphone was found.","no-speech":"No speech was detected.","network":"Browser speech service had a network error."};
-      setState("VOICE ERROR", "error", errors[event.error] || ("Speech error: " + event.error));
-    };
-    recognition.onend = function(){ listening = false; voiceBtn.classList.remove("listening"); voiceMiniBtn.classList.remove("listening"); };
-    voiceBtn.addEventListener("click", toggle);
-    voiceMiniBtn.addEventListener("click", toggle);
-    setState("READY", "ready", "Click MIC or press Ctrl + Space and speak.");
-  }
-
-  document.addEventListener("keydown", function(event){
-    if(event.ctrlKey && event.code === "Space"){ event.preventDefault(); toggle(); }
-  });
-
-  const messages = document.querySelector("#messages");
+  const messages=document.querySelector("#messages");
   if(messages && "MutationObserver" in window){
-    const observer = new MutationObserver(function(){
-      const nodes = messages.querySelectorAll(".agent-message p");
+    const observer=new MutationObserver(function(){
+      const nodes=messages.querySelectorAll(".agent-message p");
       if(!nodes.length) return;
-      const text = nodes[nodes.length - 1].textContent || "";
-      if(text && text !== lastAgentText && text.indexOf("Routing request") !== 0){
-        lastAgentText = text;
+      const text=nodes[nodes.length-1].textContent||"";
+      if(text && text!==lastAgentText && text.indexOf("Routing request")!==0){
+        lastAgentText=text;
         speak(text);
       }
     });
-    observer.observe(messages, {childList:true, subtree:true});
+    observer.observe(messages,{childList:true,subtree:true});
   }
+
+  setState("READY","ready",engine.value==="local"
+    ? "Local Whisper: click MIC to start, click again to transcribe."
+    : "Browser Speech: click MIC and speak.");
 })();

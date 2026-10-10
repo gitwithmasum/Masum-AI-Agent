@@ -18,7 +18,7 @@
         <div class="brand-mark">M</div>
         <div>
           <strong>MASUM AI</strong>
-          <span>AGENT OS // v4.0</span>
+          <span>AGENT OS // v4.1</span>
         </div>
       </div>
 
@@ -121,6 +121,10 @@
                   <option value="en-US">English US</option>
                   <option value="en-GB">English UK</option>
                 </select>
+                <select id="voiceEngine" aria-label="Speech recognition engine">
+                  <option value="local">Local Whisper</option>
+                  <option value="browser">Browser Speech</option>
+                </select>
               </div>
             </div>
 
@@ -137,9 +141,9 @@
             <div class="voice-console" id="voiceConsole">
               <button class="voice-orb" id="voiceBtn" type="button" aria-label="Start voice input">◉</button>
               <div class="voice-meta">
-                <span class="tag">VOICE LINK</span>
+                <span class="tag">VOICE LINK</span><span class="stt-badge" id="sttBadge">STT CHECK</span>
                 <strong id="voiceState">READY</strong>
-                <small id="voiceHint">Click MIC or press Ctrl + Space and speak.</small>
+                <small id="voiceHint">Local Whisper: click MIC to start, click again to transcribe.</small>
               </div>
               <label class="toggle">
                 <input type="checkbox" id="voiceAutoSend" checked>

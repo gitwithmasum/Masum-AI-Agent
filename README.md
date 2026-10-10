@@ -1,5 +1,46 @@
 # Masum AI Agent
 
+## v4.1 — Fully Local Speech-to-Text
+
+v4.1 adds a local Faster-Whisper speech-to-text service for better Bangla/English voice input. Browser Speech remains available as a fallback.
+
+### Setup
+
+```powershell
+py -0p
+```
+
+If Python 3.12 is missing:
+
+```powershell
+winget install -e --id Python.Python.3.12
+```
+
+Then:
+
+```powershell
+.\setup_local_stt.ps1
+```
+
+Start Local Whisper in Terminal 1:
+
+```powershell
+.\.venv-stt\Scripts\python.exe local_stt_server.py
+```
+
+Start the dashboard in Terminal 2:
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+python dashboard.py
+```
+
+In Neural Chat select **Local Whisper**. Click MIC once to start recording and click MIC again when finished. The multilingual `small` model is downloaded once into `data/stt_models`, then reused locally.
+
+The main Python 3.14 environment stays separate from the STT Python 3.12 environment.
+
+---
+
 ## v4.0 — Voice Agent
 
 v4.0 adds microphone input and spoken replies to the local Web Dashboard while preserving all v3.0 features.

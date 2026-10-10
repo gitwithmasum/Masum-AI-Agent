@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import os
 import threading
+import urllib.error
+import urllib.parse
+import urllib.request
 import webbrowser
 from datetime import datetime
 from pathlib import Path
 from typing import Literal
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -22,6 +26,11 @@ from multi_agent import AGENT_DESCRIPTIONS, normalize_agent_name
 DASHBOARD_DIR = Path(__file__).resolve().parent / "dashboard"
 HOST = os.getenv("DASHBOARD_HOST", "127.0.0.1").strip() or "127.0.0.1"
 PORT = int(os.getenv("DASHBOARD_PORT", "8765"))
+STT_SERVICE_URL = os.getenv(
+    "STT_SERVICE_URL",
+    "http://127.0.0.1:8766",
+).strip().rstrip("/")
+STT_PROXY_TIMEOUT = int(os.getenv("STT_PROXY_TIMEOUT", "120"))
 AUTO_OPEN = os.getenv(
     "DASHBOARD_AUTO_OPEN",
     "true",
@@ -29,7 +38,7 @@ AUTO_OPEN = os.getenv(
 
 app = FastAPI(
     title="Masum AI Agent Dashboard",
-    version="4.0.0",
+    version="4.1.0",
     docs_url=None,
     redoc_url=None,
 )
@@ -112,6 +121,35 @@ def ollama_status() -> tuple[bool, str]:
         return False, str(error)
 
 
+def stt_request(method: str, path: str, body: bytes | None = None, content_type: str = "application/json") -> tuple[dict | None, str | None]:
+    url = f"{STT_SERVICE_URL}{path}"
+    headers = {"Accept": "application/json"}
+    if body is not None:
+        headers["Content-Type"] = content_type
+    req = urllib.request.Request(url, data=body, headers=headers, method=method)
+    try:
+        with urllib.request.urlopen(req, timeout=STT_PROXY_TIMEOUT) as response:
+            payload = response.read().decode("utf-8", errors="replace")
+            return json.loads(payload) if payload else {}, None
+    except urllib.error.HTTPError as error:
+        try:
+            payload = json.loads(error.read().decode("utf-8", errors="replace"))
+            detail = payload.get("detail") or payload.get("error") or str(error)
+        except Exception:
+            detail = str(error)
+        return None, f"Local STT error {error.code}: {detail}"
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
+        return None, f"Local STT service unavailable: {error}"
+    except json.JSONDecodeError as error:
+        return None, f"Local STT returned invalid JSON: {error}"
+
+
+def stt_status_data() -> dict:
+    data, error = stt_request("GET", "/status")
+    if error:
+        return {"online": False, "service_url": STT_SERVICE_URL, "detail": error}
+    return {"online": True, "service_url": STT_SERVICE_URL, **(data or {})}
+
 def safe_report_path(file_name: str) -> Path:
     core.ensure_research_report_dir()
     root = core.RESEARCH_REPORT_DIR.resolve()
@@ -189,8 +227,10 @@ async def api_status():
         if task.get("enabled", True)
     )
 
+    local_stt = await asyncio.to_thread(stt_status_data)
+
     return {
-        "version": "v4.0",
+        "version": "v4.1",
         "name": "Masum AI Agent",
         "ollama": {
             "online": ollama_ok,
@@ -213,6 +253,7 @@ async def api_status():
         },
         "reports": len(reports),
         "auto_route": core.MULTI_AGENT_AUTO_ROUTE,
+        "local_stt": local_stt,
         "local_time": datetime.now().astimezone().isoformat(),
     }
 
@@ -291,6 +332,28 @@ async def api_chat(payload: ChatRequest):
             "answer": output,
         }
 
+
+@app.get("/api/stt/status")
+async def api_stt_status():
+    return await asyncio.to_thread(stt_status_data)
+
+
+@app.post("/api/stt/transcribe")
+async def api_stt_transcribe(request: Request, language: str = "bn"):
+    audio = await request.body()
+    if not audio:
+        raise HTTPException(status_code=400, detail="Audio body is empty.")
+    if len(audio) > 20 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="Audio is too large.")
+    safe_language = language.strip().lower()
+    if safe_language not in {"bn", "en", "auto"}:
+        safe_language = "auto"
+    path = "/transcribe?" + urllib.parse.urlencode({"language": safe_language})
+    content_type = request.headers.get("content-type", "audio/webm")
+    data, error = await asyncio.to_thread(stt_request, "POST", path, audio, content_type)
+    if error:
+        raise HTTPException(status_code=503, detail=error)
+    return data or {}
 
 @app.get("/api/gmail/status")
 async def api_gmail_status():
@@ -486,8 +549,9 @@ if __name__ == "__main__":
         ).start()
 
     print("=" * 64)
-    print("🤖 MASUM AI AGENT v4.0 — VOICE AGENT + WEB DASHBOARD")
+    print("🤖 MASUM AI AGENT v4.1 — LOCAL WHISPER VOICE")
     print(f"Dashboard: http://{HOST}:{PORT}")
+    print(f"Local STT: {STT_SERVICE_URL}")
     print("Security : local-only is recommended (127.0.0.1)")
     print("Stop     : Ctrl + C")
     print("=" * 64)
