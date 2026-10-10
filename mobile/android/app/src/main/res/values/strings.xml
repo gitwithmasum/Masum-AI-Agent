@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Masum AI Agent</string>
+    <string name="accessibility_label">Masum AI Voice Control</string>
+    <string name="accessibility_description">Optional voice-driven UI control for scroll, back, home, click and text entry.</string>
+</resources>
