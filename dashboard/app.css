@@ -299,3 +299,42 @@ select:focus,input:focus,textarea:focus{border-color:var(--line-strong);box-shad
   font-weight:700;
   color:var(--cyan);
 }
+
+
+/* v4.4 Voice Command Center */
+.voice-command-guide{
+  margin:0 14px 12px;
+  border:1px solid rgba(103,232,255,.14);
+  border-radius:12px;
+  background:rgba(4,13,23,.46);
+  overflow:hidden;
+}
+.voice-command-guide summary{
+  cursor:pointer;
+  padding:10px 13px;
+  color:var(--cyan);
+  font-size:.66rem;
+  font-weight:800;
+  letter-spacing:.12em;
+  user-select:none;
+}
+.voice-command-guide summary:hover{
+  background:rgba(103,232,255,.04);
+}
+.voice-command-grid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  gap:7px;
+  padding:0 13px 13px;
+}
+.voice-command-grid span{
+  padding:8px 10px;
+  border:1px solid rgba(103,232,255,.09);
+  border-radius:9px;
+  color:var(--muted);
+  font-size:.68rem;
+  background:rgba(2,9,16,.45);
+}
+@media(max-width:680px){
+  .voice-command-grid{grid-template-columns:1fr}
+}
