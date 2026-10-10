@@ -229,3 +229,4 @@ select:focus,input:focus,textarea:focus{border-color:var(--line-strong);box-shad
 .stt-badge.online{color:var(--green);border-color:rgba(121,242,178,.35)}
 .stt-badge.offline{color:var(--danger);border-color:rgba(255,117,143,.35)}
 .voice-orb.processing,.voice-mini.processing{color:var(--violet);border-color:var(--violet);animation:voiceGlow 1s ease-in-out infinite alternate}
+\n/* Brand logo */\n.brand-mark{padding:0;overflow:hidden;background:#040811}\n.brand-mark img{width:100%;height:100%;object-fit:cover;display:block}\n

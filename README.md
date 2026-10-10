@@ -1,4 +1,4 @@
-# Masum AI Agent
+# Masum AI Agent\n\n<p align="center"><img src="dashboard/masum-ai-agent-logo.webp" alt="Masum AI Agent Logo" width="220"></p>
 
 ## v4.1 — Fully Local Speech-to-Text
 
@@ -70,7 +70,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v3.0 — Web Dashboard**
+**v4.1 — Fully Local Speech-to-Text + Voice Dashboard**
 
 ### v3.0 adds
 
