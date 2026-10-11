@@ -1,5 +1,26 @@
 # Masum AI Agent
 
+## v5.9 — Camera + Visual Assistant
+
+Android Cirilla/Geralt can now launch an explicit camera capture and process the result on-device for Latin-script OCR or general image labels.
+
+```text
+Hey Cirilla, scan this document
+Hey Cirilla, read text with camera
+Hey Cirilla, what do you see?
+Hey Cirilla, describe with camera
+
+হেই সিরিলা, ডকুমেন্ট স্ক্যান করো
+হেই সিরিলা, ক্যামেরা দিয়ে লেখা পড়ো
+হেই সিরিলা, ক্যামেরা দিয়ে কী দেখছ বলো
+```
+
+Captured images use a temporary cache file and are deleted on cleanup. Obvious OTP/security-code text is protected. Image labels are basic ML Kit labels, not full generative scene reasoning.
+
+Artifact: `Masum-AI-Agent-Android-APK-v5.9`
+
+---
+
 ## v5.8 — Smart App Automation
 
 Android Cirilla/Geralt can now carry intent-based tasks into supported apps instead of only opening them.
@@ -319,7 +340,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v5.8 — Smart App Automation**
+**v5.9 — Camera + Visual Assistant**
 
 ## Roadmap
 
@@ -349,7 +370,8 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 - v5.5 — Alarm + Timer + Reminder + Calendar + Notes ✅
 - v5.6 — Full Phone Controls ✅
 - v5.7 — Screen-Aware Cirilla ✅
-- **v5.8 — Smart App Automation ✅**
+- v5.8 — Smart App Automation ✅
+- **v5.9 — Camera + Visual Assistant ✅**
 
 ## Author
 

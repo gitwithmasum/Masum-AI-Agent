@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("MASUM AI AGENT\nMobile Companion v5.8");
+        title.setText("MASUM AI AGENT\nMobile Companion v5.9");
         title.setTextColor(Color.rgb(103, 232, 255));
         title.setTextSize(26);
         title.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -265,7 +265,15 @@ public class MainActivity extends Activity {
             "হেই সিরিলা, ইউটিউবে Python functions সার্চ করো\n" +
             "হেই সিরিলা, ম্যাপে BUBT খুঁজে দাও\n" +
             "হেই সিরিলা, BUBT-তে নেভিগেট করো\n" +
-            "হেই সিরিলা, রহিমের হোয়াটসঅ্যাপ চ্যাট খোলো\n" +
+            "হেই সিরিলা, রহিমের হোয়াটসঅ্যাপ চ্যাট খোলো\n\n" +
+            "CAMERA + VISUAL EXAMPLES\n\n" +
+            "Hey Cirilla, scan this document\n" +
+            "Hey Cirilla, read text with camera\n" +
+            "Hey Cirilla, what do you see?\n" +
+            "Hey Cirilla, describe with camera\n" +
+            "হেই সিরিলা, ডকুমেন্ট স্ক্যান করো\n" +
+            "হেই সিরিলা, ক্যামেরা দিয়ে লেখা পড়ো\n" +
+            "হেই সিরিলা, ক্যামেরা দিয়ে কী দেখছ বলো\n" +
             "Hey Cirilla, switch to Geralt"
         );
         commands.setTextColor(Color.LTGRAY);

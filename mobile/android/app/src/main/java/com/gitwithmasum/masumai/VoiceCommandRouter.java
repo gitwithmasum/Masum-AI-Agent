@@ -1155,6 +1155,50 @@ public class VoiceCommandRouter {
             speak("Opening ChatGPT.");
             return;
         }
+        if (matches(
+            cmd,
+            "scan this document",
+            "scan document",
+            "read text with camera",
+            "read this document with camera",
+            "camera ocr",
+            "ডকুমেন্ট স্ক্যান করো",
+            "ক্যামেরা দিয়ে লেখা পড়ো",
+            "ক্যামেরা দিয়ে লেখা পড়ো",
+            "ক্যামেরা দিয়ে ডকুমেন্ট পড়ো",
+            "ক্যামেরা দিয়ে ডকুমেন্ট পড়ো"
+        )) {
+            launchVision(
+                CameraVisionActivity.MODE_OCR
+            );
+            speak(
+                "Opening camera text recognition."
+            );
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "what do you see",
+            "describe with camera",
+            "describe this with camera",
+            "camera describe",
+            "visual scan",
+            "ক্যামেরা দিয়ে কী দেখছ বলো",
+            "ক্যামেরা দিয়ে কী দেখছ বলো",
+            "ক্যামেরা দিয়ে কি দেখছ বলো",
+            "ক্যামেরা দিয়ে কি দেখছ বলো",
+            "ছবিটা বর্ণনা করো"
+        )) {
+            launchVision(
+                CameraVisionActivity.MODE_DESCRIBE
+            );
+            speak(
+                "Opening camera visual description."
+            );
+            return;
+        }
+
         if (matches(cmd, "open camera", "camera open", "ক্যামেরা খোলো")) {
             Intent intent = new Intent("android.media.action.IMAGE_CAPTURE");
             intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -1982,6 +2026,21 @@ public class VoiceCommandRouter {
     private void openSettings(String action) {
         Intent intent = new Intent(action);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        safeStart(intent);
+    }
+
+    private void launchVision(String mode) {
+        Intent intent = new Intent(
+            context,
+            CameraVisionActivity.class
+        );
+        intent.putExtra(
+            CameraVisionActivity.EXTRA_MODE,
+            mode
+        );
+        intent.addFlags(
+            Intent.FLAG_ACTIVITY_NEW_TASK
+        );
         safeStart(intent);
     }
 

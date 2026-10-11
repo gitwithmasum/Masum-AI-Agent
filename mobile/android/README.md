@@ -1,41 +1,32 @@
-# Masum AI Agent Mobile v5.8
+# Masum AI Agent Mobile v5.9
 
-Native Android Cirilla / Geralt companion with smart app automation via safe Android intents and deep links.
+Native Android Cirilla / Geralt companion with on-device camera OCR and basic visual labeling.
 
-## Smart app commands
-
-```text
-Hey Cirilla, YouTube search Python functions
-Hey Cirilla, Chrome search machine learning roadmap
-Hey Cirilla, Maps search BUBT
-Hey Cirilla, navigate to BUBT
-Hey Cirilla, search Masum AI Agent on GitHub
-Hey Cirilla, search Notion on Play Store
-Hey Cirilla, open WhatsApp chat with Rahim
-```
-
-Bangla examples:
+## Camera voice commands
 
 ```text
-হেই সিরিলা, ইউটিউবে Python functions সার্চ করো
-হেই সিরিলা, ক্রোমে machine learning roadmap সার্চ করো
-হেই সিরিলা, ম্যাপে BUBT খুঁজে দাও
-হেই সিরিলা, BUBT-তে নেভিগেট করো
-হেই সিরিলা, গিটহাবে Masum AI Agent সার্চ করো
-হেই সিরিলা, প্লে স্টোরে Notion সার্চ করো
-হেই সিরিলা, রহিমের হোয়াটসঅ্যাপ চ্যাট খোলো
+Hey Cirilla, scan this document
+Hey Cirilla, read text with camera
+Hey Cirilla, what do you see?
+Hey Cirilla, describe with camera
+
+হেই সিরিলা, ডকুমেন্ট স্ক্যান করো
+হেই সিরিলা, ক্যামেরা দিয়ে লেখা পড়ো
+হেই সিরিলা, ক্যামেরা দিয়ে কী দেখছ বলো
 ```
 
-## How it works
+The user explicitly captures each photo in the Android camera UI.
 
-- YouTube search opens a YouTube results deep link.
-- Chrome/web search opens a Google search query.
-- Maps search uses Android geo intents with a web fallback.
-- Navigation uses Google Maps navigation intents.
-- GitHub search opens GitHub search results.
-- Play Store search uses the market intent with a web fallback.
-- WhatsApp chat resolves the spoken contact from Android Contacts and opens the matching WhatsApp conversation without sending a message.
+## On-device analysis
 
-This phase prefers deterministic app intents instead of blind Accessibility clicking. Sensitive/password/security flows remain outside the automation allowlist.
+- Text recognition uses the bundled ML Kit Latin-script OCR model.
+- Basic visual description uses the bundled ML Kit image-labeling model.
+- Captures are written only to a temporary app cache file and deleted on activity cleanup.
+- Photos are not uploaded to Masum AI Agent servers.
+- Obvious OTP / verification / security-code text is not spoken aloud.
+
+The image-labeling mode provides general labels rather than full generative visual reasoning. It does not identify people.
+
+Bangla voice commands are supported, but the bundled OCR recognizer is for Latin-script text; Bengali-script document OCR is not claimed as reliable in this phase.
 
 All earlier v5.x features remain available.
