@@ -43,7 +43,7 @@ Bangla aliases are included, for example:
 
 ## Android permission boundaries
 
-- Flashlight uses Android CameraManager.
+- Flashlight uses Android CameraManager and needs the app's one-time **Flashlight access** permission.
 - Brightness and rotation require Android's **Modify system settings** approval once.
 - DND requires Android's **Do Not Disturb access** approval once.
 - Screenshot uses Accessibility global screenshot and therefore needs Accessibility Voice Control enabled.

@@ -21,7 +21,7 @@ Hey Cirilla, hotspot settings
 হেই সিরিলা, স্ক্রিনশট নাও
 ```
 
-Android special-access prompts are respected: brightness/rotation use Modify System Settings, DND uses Notification Policy Access, and screenshot uses the already optional Accessibility service.
+Android permission boundaries are respected: flashlight has a one-time Camera/Flashlight permission button, brightness/rotation use Modify System Settings, DND uses Notification Policy Access, and screenshot uses the already optional Accessibility service.
 
 Artifact: `Masum-AI-Agent-Android-APK-v5.6`
 

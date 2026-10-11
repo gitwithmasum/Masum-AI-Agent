@@ -27,6 +27,7 @@ public class MainActivity extends Activity {
     private static final int PHONE_REQUEST = 43;
     private static final int CONTACT_REQUEST = 44;
     private static final int NOTIFICATION_REQUEST = 45;
+    private static final int CAMERA_REQUEST = 46;
     private TextView status;
 
     @Override
@@ -57,8 +58,9 @@ public class MainActivity extends Activity {
             "5. Optional: enable Accessibility Voice Control\n" +
             "6. Allow Contacts + Outgoing Calls for name-based calling\n" +
             "7. Allow Reminder Notifications\n" +
-            "8. Allow system settings / DND on first use when Android asks\n" +
-            "9. Pair with the Windows companion for laptop voice control\n\n" +
+            "8. Allow Flashlight access\n" +
+            "9. Allow system settings / DND on first use when Android asks\n" +
+            "10. Pair with the Windows companion for laptop voice control\n\n" +
             "Cirilla/Geralt never auto-answer calls. A call action only runs after your explicit voice command."
         );
         intro.setTextColor(Color.WHITE);
@@ -106,6 +108,10 @@ public class MainActivity extends Activity {
         Button reminderNotifications = button("7 — ALLOW REMINDER NOTIFICATIONS");
         reminderNotifications.setOnClickListener(v -> requestReminderNotifications());
         root.addView(reminderNotifications, matchWrap());
+
+        Button flashlightPermission = button("8 — ALLOW FLASHLIGHT ACCESS");
+        flashlightPermission.setOnClickListener(v -> requestFlashlightPermission());
+        root.addView(flashlightPermission, matchWrap());
 
         TextView languageTitle = new TextView(this);
         languageTitle.setText("\nVOICE LANGUAGE");
@@ -325,6 +331,22 @@ public class MainActivity extends Activity {
         }
     }
 
+    private void requestFlashlightPermission() {
+        if (
+            checkSelfPermission(Manifest.permission.CAMERA)
+                != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                new String[]{
+                    Manifest.permission.CAMERA
+                },
+                CAMERA_REQUEST
+            );
+        } else {
+            updateStatus();
+        }
+    }
+
     private void requestReminderNotifications() {
         if (
             Build.VERSION.SDK_INT >= 33 &&
@@ -447,6 +469,10 @@ public class MainActivity extends Activity {
                 Manifest.permission.POST_NOTIFICATIONS
             ) == PackageManager.PERMISSION_GRANTED;
 
+        boolean flashlightReady =
+            checkSelfPermission(Manifest.permission.CAMERA)
+                == PackageManager.PERMISSION_GRANTED;
+
         status.setText(
             "Microphone: " + (mic ? "READY" : "PERMISSION NEEDED") +
             "\nDefault Assistant: " + (activeAssistant ? "MASUM AI ACTIVE" : "NOT SELECTED") +
@@ -456,6 +482,7 @@ public class MainActivity extends Activity {
             "\nContacts: " + (contactsReady ? "READY" : "PERMISSION NEEDED") +
             "\nOutgoing Call: " + (outgoingReady ? "READY" : "DIALER FALLBACK") +
             "\nReminder Notifications: " + (reminderNotificationsReady ? "READY" : "PERMISSION NEEDED") +
+            "\nFlashlight: " + (flashlightReady ? "READY" : "PERMISSION NEEDED") +
             "\nVoice Language: " + voiceLanguageMode().toUpperCase(Locale.ROOT) +
             "\nLaptop Bridge: " + (BridgeClient.isConfigured(this) ? "PAIRED" : "NOT PAIRED")
         );
