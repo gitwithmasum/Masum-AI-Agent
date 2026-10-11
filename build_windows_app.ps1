@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-Write-Host "Masum AI Agent v6.0 - Unified AI Builder" -ForegroundColor Cyan
+Write-Host "Masum AI Agent v6.3 - Release Candidate Builder" -ForegroundColor Cyan
 
 if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
     Write-Host "Python launcher 'py' was not found." -ForegroundColor Red
@@ -20,6 +20,7 @@ if (-not (Test-Path ".venv-desktop")) {
 $python = ".\.venv-desktop\Scripts\python.exe"
 & $python -m pip install --upgrade pip
 & $python -m pip install -r requirements-desktop.txt
+& $python -m pip install -r requirements.txt
 
 New-Item -ItemType Directory -Force -Path build | Out-Null
 New-Item -ItemType Directory -Force -Path dist | Out-Null
@@ -29,7 +30,14 @@ New-Item -ItemType Directory -Force -Path dist | Out-Null
 & $python -m PyInstaller --noconfirm --clean --onefile --windowed --name MasumAIAgent --icon build\masum-ai-agent.ico --collect-all faster_whisper --collect-all ctranslate2 --collect-all av --collect-all sounddevice --hidden-import pyttsx3.drivers --hidden-import pyttsx3.drivers.sapi5 desktop_companion.py
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "PyInstaller build failed." -ForegroundColor Red
+    Write-Host "Companion PyInstaller build failed." -ForegroundColor Red
+    exit 1
+}
+
+& $python -m PyInstaller --noconfirm --clean --onefile --windowed --name MasumAIBrain --icon build\masum-ai-agent.ico --add-data "dashboard;dashboard" --collect-all agents --collect-all openai --collect-all ddgs --collect-all pypdf --collect-all docx --collect-all googleapiclient --collect-all google_auth_oauthlib dashboard.py
+
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "AI Brain PyInstaller build failed." -ForegroundColor Red
     exit 1
 }
 

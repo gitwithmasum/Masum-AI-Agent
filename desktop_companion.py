@@ -34,7 +34,7 @@ from PIL import Image, ImageDraw
 load_dotenv(override=True)
 
 APP_NAME = "Masum AI Agent"
-VERSION = "6.2.0"
+VERSION = "6.3.0"
 LOCAL_APP_DATA = Path(
     os.getenv("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))
 )
@@ -675,6 +675,80 @@ def brain_status() -> tuple[bool, str]:
         return False, str(error)
 
 
+def installed_brain_executable() -> Path | None:
+    candidates: list[Path] = []
+
+    if getattr(sys, "frozen", False):
+        candidates.append(
+            Path(sys.executable).resolve().parent /
+            "MasumAIBrain.exe"
+        )
+
+    candidates.append(
+        Path(__file__).resolve().parent /
+        "MasumAIBrain.exe"
+    )
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+
+    return None
+
+
+def packaged_brain_environment() -> tuple[dict[str, str], Path]:
+    runtime_root = APP_DATA_DIR / "brain-data"
+    data_dir = runtime_root / "data"
+    knowledge_dir = runtime_root / "knowledge"
+    reports_dir = runtime_root / "research_reports"
+    secrets_dir = runtime_root / "secrets"
+
+    for path in (
+        runtime_root,
+        data_dir,
+        knowledge_dir,
+        reports_dir,
+        secrets_dir,
+    ):
+        path.mkdir(parents=True, exist_ok=True)
+
+    env = os.environ.copy()
+    env["DASHBOARD_HOST"] = "127.0.0.1"
+    env["DASHBOARD_PORT"] = "8765"
+    env["DASHBOARD_AUTO_OPEN"] = "false"
+    env.setdefault(
+        "MEMORY_DB_PATH",
+        str(data_dir / "memory.db"),
+    )
+    env.setdefault(
+        "KNOWLEDGE_DIR",
+        str(knowledge_dir),
+    )
+    env.setdefault(
+        "RESEARCH_REPORT_DIR",
+        str(reports_dir),
+    )
+    env.setdefault(
+        "GMAIL_CREDENTIALS_PATH",
+        str(secrets_dir / "gmail_credentials.json"),
+    )
+    env.setdefault(
+        "GMAIL_TOKEN_PATH",
+        str(secrets_dir / "gmail_token.json"),
+    )
+    env.setdefault(
+        "AUTOMATION_TASKS_PATH",
+        str(data_dir / "automations.json"),
+    )
+    env.setdefault(
+        "AUTOMATION_LOG_PATH",
+        str(data_dir / "automation_log.jsonl"),
+    )
+    env["MASUM_AI_PACKAGED_BRAIN"] = "1"
+
+    return env, runtime_root
+
+
 def project_python(project: Path) -> str | None:
     candidates = [
         project / ".venv" / "Scripts" / "python.exe",
@@ -699,17 +773,29 @@ def start_brain_server() -> tuple[bool, str]:
     if online:
         return True, detail
 
-    project = discover_project_path()
-    if project is None:
-        return False, "Masum AI Agent project folder was not found."
+    packaged_brain = installed_brain_executable()
+    project = None
+    dashboard = None
+    python_exe = None
 
-    dashboard = project / "dashboard.py"
-    if not dashboard.exists():
-        return False, "dashboard.py was not found in the project."
+    if packaged_brain is None:
+        project = discover_project_path()
+        if project is None:
+            return False, (
+                "Bundled AI brain was not found, and the Masum AI Agent "
+                "development project folder was not found."
+            )
 
-    python_exe = project_python(project)
-    if not python_exe:
-        return False, "A Python runtime for the Masum AI Agent project was not found."
+        dashboard = project / "dashboard.py"
+        if not dashboard.exists():
+            return False, "dashboard.py was not found in the project."
+
+        python_exe = project_python(project)
+        if not python_exe:
+            return False, (
+                "Bundled AI brain was not found, and a Python runtime "
+                "for the development project was not found."
+            )
 
     with BRAIN_PROCESS_LOCK:
         online, detail = brain_status()
@@ -717,24 +803,31 @@ def start_brain_server() -> tuple[bool, str]:
             return True, detail
 
         if brain_process is None or brain_process.poll() is not None:
-            env = os.environ.copy()
-            env["DASHBOARD_HOST"] = "127.0.0.1"
-            env["DASHBOARD_PORT"] = "8765"
-            env["DASHBOARD_AUTO_OPEN"] = "false"
-
             creationflags = 0
             if os.name == "nt":
                 creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
 
             try:
-                if Path(python_exe).name.lower() == "py.exe":
-                    args = [python_exe, "-3.14", str(dashboard)]
+                if packaged_brain is not None:
+                    env, runtime_root = packaged_brain_environment()
+                    args = [str(packaged_brain)]
+                    cwd = runtime_root
                 else:
-                    args = [python_exe, str(dashboard)]
+                    env = os.environ.copy()
+                    env["DASHBOARD_HOST"] = "127.0.0.1"
+                    env["DASHBOARD_PORT"] = "8765"
+                    env["DASHBOARD_AUTO_OPEN"] = "false"
+
+                    if Path(python_exe).name.lower() == "py.exe":
+                        args = [python_exe, "-3.14", str(dashboard)]
+                    else:
+                        args = [python_exe, str(dashboard)]
+
+                    cwd = project
 
                 brain_process = subprocess.Popen(
                     args,
-                    cwd=str(project),
+                    cwd=str(cwd),
                     env=env,
                     stdout=subprocess.DEVNULL,
                     stderr=subprocess.DEVNULL,
@@ -848,7 +941,8 @@ def security_health_text() -> str:
         f"Bridge HMAC key configured: {'YES' if secret_ready else 'NO'}",
         "Replay protection: timestamp + one-time nonce",
         f"Unified brain URL local-only: {'YES' if brain_local else 'CHECK CONFIG'}",
-        f"Project folder: {'FOUND' if project is not None else 'NOT FOUND'}",
+        f"Bundled AI brain: {'FOUND' if installed_brain_executable() is not None else 'NOT FOUND'}",
+        f"Development project fallback: {'FOUND' if project is not None else 'NOT FOUND'}",
         f"Unified brain: {'ONLINE' if brain_ok else 'OFFLINE / ON-DEMAND'}",
         f"Brain detail: {brain_detail if brain_ok else 'Starts on demand when local runtime and Ollama are available.'}",
         "OS actions: explicit allowlist only",

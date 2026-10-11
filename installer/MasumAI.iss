@@ -1,5 +1,5 @@
 #define MyAppName "Masum AI Agent"
-#define MyAppVersion "6.2.0"
+#define MyAppVersion "6.3.0"
 #define MyAppPublisher "Masum Billah"
 #define MyAppExeName "MasumAIAgent.exe"
 
@@ -27,6 +27,7 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription:
 
 [Files]
 Source: "..\dist\{#MyAppExeName}"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\dist\MasumAIBrain.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\Masum AI Agent"; Filename: "{app}\{#MyAppExeName}"

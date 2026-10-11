@@ -39,6 +39,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements-desktop.txt
+          python -m pip install -r requirements.txt
 
       - name: Create Windows icon
         shell: pwsh
@@ -50,6 +51,11 @@ jobs:
         shell: pwsh
         run: |
           python -m PyInstaller --noconfirm --clean --onefile --windowed --name MasumAIAgent --icon build\masum-ai-agent.ico --collect-all faster_whisper --collect-all ctranslate2 --collect-all av --collect-all sounddevice --hidden-import pyttsx3.drivers --hidden-import pyttsx3.drivers.sapi5 desktop_companion.py
+
+      - name: Build standalone AI Brain
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name MasumAIBrain --icon build\masum-ai-agent.ico --add-data "dashboard;dashboard" --collect-all agents --collect-all openai --collect-all ddgs --collect-all pypdf --collect-all docx --collect-all googleapiclient --collect-all google_auth_oauthlib dashboard.py
 
       - name: Install Inno Setup
         shell: pwsh
@@ -63,6 +69,6 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: Masum-AI-Agent-Windows-Setup-v6.2
+          name: Masum-AI-Agent-Windows-Setup-v6.3-RC
           path: installer-output/Masum-AI-Agent-Setup.exe
           if-no-files-found: error
