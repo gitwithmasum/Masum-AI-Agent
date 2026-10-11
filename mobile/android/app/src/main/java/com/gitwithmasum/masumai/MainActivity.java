@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("MASUM AI AGENT\nMobile Companion v6.3 RC");
+        title.setText("MASUM AI AGENT\nMobile Companion 1.0.0 Release Gate");
         title.setTextColor(Color.rgb(103, 232, 255));
         title.setTextSize(26);
         title.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -147,6 +147,38 @@ public class MainActivity extends Activity {
             reliabilityCenter,
             matchWrap()
         );
+
+        Button readinessCheck = button(
+            "RUN FIRST-RUN READINESS CHECK"
+        );
+        readinessCheck.setOnClickListener(v -> {
+            updateStatus();
+            status.append(
+                "\n\nFIRST-RUN READINESS\n" +
+                SecurityHealthManager.spokenSummary(this) +
+                "\n" +
+                ReliabilityHealthManager.spokenSummary(this)
+            );
+
+            if (BridgeClient.isConfigured(this)) {
+                BridgeClient.send(
+                    this,
+                    "brain_status",
+                    (ok, message) -> runOnUiThread(() ->
+                        status.append(
+                            "\nUnified brain: " +
+                            (ok ? "READY — " : "CHECK NEEDED — ") +
+                            message
+                        )
+                    )
+                );
+            } else {
+                status.append(
+                    "\nUnified brain: pair the Windows companion first."
+                );
+            }
+        });
+        root.addView(readinessCheck, matchWrap());
 
         TextView languageTitle = new TextView(this);
         languageTitle.setText("\nVOICE LANGUAGE");

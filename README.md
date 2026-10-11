@@ -1,5 +1,17 @@
 # Masum AI Agent
 
+## v6.4 — Final Stable Release Gate
+
+The codebase is now prepared around product version **1.0.0**.
+
+Normal CI produces Android `1.0.0-rc1` candidates. The manual Final Stable Release workflow is designed to produce Android `1.0.0` only when permanent signing secrets exist and real-device QA is explicitly confirmed. Windows is packaged as a self-contained 1.0.0 installer with both the desktop companion and bundled local AI brain.
+
+The Android setup screen now includes a **RUN FIRST-RUN READINESS CHECK** action. Windows tray includes **Open First Run Guide**.
+
+Final stable artifacts are not declared until the signed Android gate and real-device QA are complete.
+
+---
+
 ## v6.3 — Final Release Candidate + Self-Contained Packaging + Full QA
 
 v6.3 RC prepares the project for the first stable Android + Windows install.
@@ -407,7 +419,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v6.3 — Final Release Candidate + Self-Contained Packaging + Full QA**
+**v6.4 — Final Stable Release Gate**
 
 ## Roadmap
 
@@ -442,7 +454,8 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 - v6.0 — Unified Personal AI Brain ✅
 - v6.1 — Security + Permission Center ✅
 - v6.2 — Stability + Battery + Background Reliability ✅
-- **v6.3 — Final Release Candidate + Self-Contained Packaging + Full QA ✅**
+- v6.3 — Final Release Candidate + Self-Contained Packaging + Full QA ✅
+- **v6.4 — Final Stable Release Gate ✅**
 
 ## Author
 

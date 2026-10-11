@@ -1,16 +1,12 @@
-# Masum AI Agent Mobile v6.3 RC
+# Masum AI Agent Mobile — 1.0 Release Gate
 
-v6.3 is the final release-candidate phase before stable installation.
+Default CI builds Android version `1.0.0-rc1`. The final stable workflow builds `1.0.0` with a higher versionCode only after permanent release signing and explicit real-device QA confirmation.
 
-The Android pipeline now builds:
-- an installable debug QA APK
-- a release APK
-- SHA-256 checksums
+The setup screen contains **RUN FIRST-RUN READINESS CHECK**, combining local security/reliability state with the unified brain test when the Windows bridge is paired.
 
-If permanent release-signing secrets are configured, the release APK is signed and verified with Android apksigner. If signing secrets are absent, the release variant is intentionally unsigned while the debug APK remains installable for QA.
+For the cleanest update path, do not install the debug RC if you intend to install only the final stable signed APK.
 
-No release keystore or password is stored in Git. See `ANDROID_RELEASE_SIGNING.md`.
-
-The RC keeps all v5.x/v6.x phone features, unified Windows AI brain routing, Security Center, Reliability Center, and protected sensitive-field behavior.
-
-Do not treat the unsigned release APK as the final stable distribution build.
+See:
+- `ANDROID_RELEASE_SIGNING.md`
+- `release/FINAL_RELEASE_CHECKLIST.md`
+- `release/FIRST_RUN_GUIDE.md`

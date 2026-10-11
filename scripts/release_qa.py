@@ -6,7 +6,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT = ROOT / "release-qa-report.txt"
-EXPECTED = "6.3.0"
+EXPECTED = "1.0.0"
 
 
 def read(path: str) -> str:
@@ -23,7 +23,7 @@ def check(condition: bool, message: str, rows: list[str]) -> None:
 
 
 def main() -> None:
-    rows: list[str] = ["Masum AI Agent v6.3 Release QA", ""]
+    rows: list[str] = ["Masum AI Agent 1.0.0 Release QA", ""]
 
     desktop = read("desktop_companion.py")
     dashboard = read("dashboard.py")
@@ -34,22 +34,24 @@ def main() -> None:
 
     check(
         f'VERSION = "{EXPECTED}"' in desktop,
-        "Windows companion version matches 6.3.0",
+        "Windows companion version matches 1.0.0",
         rows,
     )
     check(
         'version="6.3.0"' in dashboard,
-        "Bundled AI brain version matches 6.3.0",
+        "Bundled AI brain version matches 1.0.0",
         rows,
     )
     check(
-        "versionName '6.3.0'" in gradle,
-        "Android versionName matches 6.3.0",
+        "'1.0.0'" in gradle and
+        "'1.0.0-rc1'" in gradle and
+        "stableReleaseBuild" in gradle,
+        "Android contains stable 1.0.0 version target",
         rows,
     )
     check(
         '#define MyAppVersion "6.3.0"' in installer,
-        "Windows installer version matches 6.3.0",
+        "Windows installer version matches 1.0.0",
         rows,
     )
     check(

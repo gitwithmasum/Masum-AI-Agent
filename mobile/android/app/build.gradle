@@ -2,6 +2,11 @@ plugins {
     id 'com.android.application'
 }
 
+def stableReleaseBuild =
+    project.findProperty('stableRelease')?.toString()?.toBoolean() ?: false
+def appVersionCode = stableReleaseBuild ? 10001 : 10000
+def appVersionName = stableReleaseBuild ? '1.0.0' : '1.0.0-rc1'
+
 def releaseKeystorePath = System.getenv('ANDROID_KEYSTORE_PATH')
 def releaseStorePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD')
 def releaseKeyAlias = System.getenv('ANDROID_KEY_ALIAS')
@@ -24,8 +29,8 @@ android {
         applicationId 'com.gitwithmasum.masumai'
         minSdk 26
         targetSdk 35
-        versionCode 630
-        versionName '6.3.0'
+        versionCode appVersionCode
+        versionName appVersionName
     }
 
     signingConfigs {

@@ -34,7 +34,7 @@ from PIL import Image, ImageDraw
 load_dotenv(override=True)
 
 APP_NAME = "Masum AI Agent"
-VERSION = "6.3.0"
+VERSION = "1.0.0"
 LOCAL_APP_DATA = Path(
     os.getenv("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))
 )
@@ -920,6 +920,47 @@ def ask_unified_brain(prompt: str) -> tuple[bool, str, list[str]]:
 
 
 
+
+def first_run_guide_text() -> str:
+    return "\n".join(
+        [
+            "Masum AI Agent 1.0.0 — First Run Guide",
+            "",
+            "1. Keep Ollama installed and make sure the selected local model is available.",
+            "2. Start Masum AI Agent; Cirilla runs from the Windows tray.",
+            "3. Open Mobile Pairing Info and pair the Android app on the same trusted private Wi-Fi.",
+            "4. On Android, complete the Security + Permission Center setup.",
+            "5. Run the Android First-Run Readiness Check.",
+            "6. Test: brain status, open VS Code on laptop, flashlight on phone, and one safe AI question.",
+            "",
+            "Security: no arbitrary voice-to-PowerShell/CMD execution. The AI brain remains localhost-only.",
+            "If Windows SmartScreen warns, verify the installer came from the official project release and checksum before continuing.",
+        ]
+    )
+
+
+def write_first_run_guide() -> Path:
+    path = APP_DATA_DIR / "first-run-guide.txt"
+    path.write_text(
+        first_run_guide_text() + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def open_first_run_guide(
+    _icon=None,
+    _item=None,
+) -> None:
+    path = write_first_run_guide()
+    try:
+        os.startfile(str(path))
+    except Exception:
+        logging.exception(
+            "Could not open first run guide."
+        )
+
+
 def security_health_text() -> str:
     project = discover_project_path()
     brain_ok, brain_detail = brain_status()
@@ -1136,7 +1177,7 @@ def verify_bridge_request(
 
 
 class BridgeHandler(BaseHTTPRequestHandler):
-    server_version = "MasumBridge/6.2"
+    server_version = "MasumBridge/1.0"
 
     def _json(self, status: int, payload: dict[str, Any]) -> None:
         raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -1437,6 +1478,10 @@ def build_menu() -> pystray.Menu:
         pystray.MenuItem(
             "Open Mobile Pairing Info",
             open_pairing_info,
+        ),
+        pystray.MenuItem(
+            "Open First Run Guide",
+            open_first_run_guide,
         ),
         pystray.MenuItem(
             "Open Security Health Report",
