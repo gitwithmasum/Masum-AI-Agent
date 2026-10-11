@@ -74,8 +74,8 @@ def main() -> None:
         rows,
     )
     check(
-        "storePassword "" not in gradle and
-        "keyPassword "" not in gradle,
+        'storePassword "' not in gradle and
+        'keyPassword "' not in gradle,
         "No Android signing password is hard-coded",
         rows,
     )
