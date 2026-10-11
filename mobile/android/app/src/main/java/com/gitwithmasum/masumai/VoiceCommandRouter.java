@@ -781,6 +781,266 @@ public class VoiceCommandRouter {
             return;
         }
 
+        Matcher youtubeSearchEnglish = Pattern
+            .compile(
+                "^(?:(?:open\\s+)?youtube\\s+(?:and\\s+)?search(?:\\s+for)?|search(?:\\s+for)?\\s+(.+?)\\s+on\\s+youtube)\\s*(.*)$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
+        Matcher youtubeSearchBangla = Pattern
+            .compile(
+                "^ইউটিউবে\\s+(.+?)\\s+(?:সার্চ|খুঁজে)\\s+(?:করো|দাও)$"
+            )
+            .matcher(raw.trim());
+
+        if (
+            youtubeSearchEnglish.find() ||
+            youtubeSearchBangla.find()
+        ) {
+            String query;
+
+            if (youtubeSearchBangla.matches()) {
+                query = youtubeSearchBangla.group(1);
+            } else {
+                String first = youtubeSearchEnglish.group(1);
+                String second = youtubeSearchEnglish.group(2);
+                query =
+                    first != null && !first.isBlank()
+                        ? first
+                        : second;
+            }
+
+            SmartAppAutomationManager.Result result =
+                SmartAppAutomationManager.searchYouTube(
+                    context,
+                    query
+                );
+
+            speak(result.message);
+            return;
+        }
+
+        Matcher chromeSearchEnglish = Pattern
+            .compile(
+                "^(?:(?:open\\s+)?chrome\\s+(?:and\\s+)?search(?:\\s+for)?|search(?:\\s+for)?\\s+(.+?)\\s+(?:in|on)\\s+chrome)\\s*(.*)$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
+        Matcher chromeSearchBangla = Pattern
+            .compile(
+                "^ক্রোমে\\s+(.+?)\\s+(?:সার্চ|খুঁজে)\\s+(?:করো|দাও)$"
+            )
+            .matcher(raw.trim());
+
+        if (
+            chromeSearchEnglish.find() ||
+            chromeSearchBangla.find()
+        ) {
+            String query;
+
+            if (chromeSearchBangla.matches()) {
+                query = chromeSearchBangla.group(1);
+            } else {
+                String first = chromeSearchEnglish.group(1);
+                String second = chromeSearchEnglish.group(2);
+                query =
+                    first != null && !first.isBlank()
+                        ? first
+                        : second;
+            }
+
+            SmartAppAutomationManager.Result result =
+                SmartAppAutomationManager.searchWeb(
+                    context,
+                    query
+                );
+
+            speak(result.message);
+            return;
+        }
+
+        Matcher mapsSearchEnglish = Pattern
+            .compile(
+                "^(?:(?:open\\s+)?maps\\s+(?:and\\s+)?search(?:\\s+for)?|(?:search|find)(?:\\s+for)?\\s+(.+?)\\s+(?:on|in)\\s+(?:google\\s+)?maps)\\s*(.*)$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
+        Matcher mapsSearchBangla = Pattern
+            .compile(
+                "^ম্যাপে\\s+(.+?)\\s+(?:খুঁজে|সার্চ)\\s+(?:দাও|করো)$"
+            )
+            .matcher(raw.trim());
+
+        if (
+            mapsSearchEnglish.find() ||
+            mapsSearchBangla.find()
+        ) {
+            String query;
+
+            if (mapsSearchBangla.matches()) {
+                query = mapsSearchBangla.group(1);
+            } else {
+                String first = mapsSearchEnglish.group(1);
+                String second = mapsSearchEnglish.group(2);
+                query =
+                    first != null && !first.isBlank()
+                        ? first
+                        : second;
+            }
+
+            SmartAppAutomationManager.Result result =
+                SmartAppAutomationManager.searchMaps(
+                    context,
+                    query
+                );
+
+            speak(result.message);
+            return;
+        }
+
+        Matcher navigateEnglish = Pattern
+            .compile(
+                "^(?:navigate|drive|directions)\\s+(?:to\\s+)?(.+)$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
+        Matcher navigateBangla = Pattern
+            .compile(
+                "^(.+?)(?:-এ|তে|এ)\\s+(?:নেভিগেট|দিকনির্দেশ)\\s+(?:করো|দাও)$"
+            )
+            .matcher(raw.trim());
+
+        if (
+            navigateEnglish.find() ||
+            navigateBangla.find()
+        ) {
+            String destination =
+                navigateEnglish.matches()
+                    ? navigateEnglish.group(1)
+                    : navigateBangla.group(1);
+
+            SmartAppAutomationManager.Result result =
+                SmartAppAutomationManager.navigateTo(
+                    context,
+                    destination
+                );
+
+            speak(result.message);
+            return;
+        }
+
+        Matcher githubSearchEnglish = Pattern
+            .compile(
+                "^search(?:\\s+for)?\\s+(.+?)\\s+on\\s+github$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
+        Matcher githubSearchBangla = Pattern
+            .compile(
+                "^গিটহাবে\\s+(.+?)\\s+(?:সার্চ|খুঁজে)\\s+(?:করো|দাও)$"
+            )
+            .matcher(raw.trim());
+
+        if (
+            githubSearchEnglish.find() ||
+            githubSearchBangla.find()
+        ) {
+            String query =
+                githubSearchEnglish.matches()
+                    ? githubSearchEnglish.group(1)
+                    : githubSearchBangla.group(1);
+
+            SmartAppAutomationManager.Result result =
+                SmartAppAutomationManager.searchGitHub(
+                    context,
+                    query
+                );
+
+            speak(result.message);
+            return;
+        }
+
+        Matcher playStoreEnglish = Pattern
+            .compile(
+                "^search(?:\\s+for)?\\s+(.+?)\\s+on\\s+(?:the\\s+)?play\\s+store$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
+        Matcher playStoreBangla = Pattern
+            .compile(
+                "^প্লে\\s+স্টোরে\\s+(.+?)\\s+(?:সার্চ|খুঁজে)\\s+(?:করো|দাও)$"
+            )
+            .matcher(raw.trim());
+
+        if (
+            playStoreEnglish.find() ||
+            playStoreBangla.find()
+        ) {
+            String query =
+                playStoreEnglish.matches()
+                    ? playStoreEnglish.group(1)
+                    : playStoreBangla.group(1);
+
+            SmartAppAutomationManager.Result result =
+                SmartAppAutomationManager.searchPlayStore(
+                    context,
+                    query
+                );
+
+            speak(result.message);
+            return;
+        }
+
+        Matcher whatsappChatEnglish = Pattern
+            .compile(
+                "^(?:open\\s+)?whatsapp\\s+chat\\s+(?:with\\s+)?(.+)$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
+        Matcher whatsappChatBangla = Pattern
+            .compile(
+                "^(.+?)(?:এর|র)\\s+হোয়াটসঅ্যাপ\\s+চ্যাট\\s+খোলো$"
+            )
+            .matcher(raw.trim());
+
+        if (
+            whatsappChatEnglish.find() ||
+            whatsappChatBangla.find()
+        ) {
+            String name =
+                whatsappChatEnglish.matches()
+                    ? whatsappChatEnglish.group(1).trim()
+                    : whatsappChatBangla.group(1).trim();
+
+            ContactActionManager.ContactResult contact =
+                ContactActionManager.resolve(
+                    context,
+                    name
+                );
+
+            if (!contact.found) {
+                speak(contact.message);
+                return;
+            }
+
+            SmartAppAutomationManager.Result result =
+                SmartAppAutomationManager.openWhatsAppChat(
+                    context,
+                    contact.number,
+                    contact.name
+                );
+
+            speak(result.message);
+            return;
+        }
+
         if (matches(
             cmd,
             "laptop status",

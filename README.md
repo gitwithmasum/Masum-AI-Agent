@@ -1,5 +1,30 @@
 # Masum AI Agent
 
+## v5.8 — Smart App Automation
+
+Android Cirilla/Geralt can now carry intent-based tasks into supported apps instead of only opening them.
+
+```text
+Hey Cirilla, YouTube search Python functions
+Hey Cirilla, Chrome search machine learning roadmap
+Hey Cirilla, Maps search BUBT
+Hey Cirilla, navigate to BUBT
+Hey Cirilla, search Masum AI Agent on GitHub
+Hey Cirilla, search Notion on Play Store
+Hey Cirilla, open WhatsApp chat with Rahim
+
+হেই সিরিলা, ইউটিউবে Python functions সার্চ করো
+হেই সিরিলা, ম্যাপে BUBT খুঁজে দাও
+হেই সিরিলা, BUBT-তে নেভিগেট করো
+হেই সিরিলা, রহিমের হোয়াটসঅ্যাপ চ্যাট খোলো
+```
+
+The implementation prefers Android intents/deep links and only falls back to browser routes when needed. No password/security flow is automated.
+
+Artifact: `Masum-AI-Agent-Android-APK-v5.8`
+
+---
+
 ## v5.7 — Screen-Aware Cirilla
 
 Android Cirilla/Geralt can now inspect useful visible UI labels, find controls and perform bounded scroll-search without exposing protected fields.
@@ -294,7 +319,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v5.7 — Screen-Aware Cirilla**
+**v5.8 — Smart App Automation**
 
 ## Roadmap
 
@@ -323,7 +348,8 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 - v5.4 — Contacts + Messaging Assistant ✅
 - v5.5 — Alarm + Timer + Reminder + Calendar + Notes ✅
 - v5.6 — Full Phone Controls ✅
-- **v5.7 — Screen-Aware Cirilla ✅**
+- v5.7 — Screen-Aware Cirilla ✅
+- **v5.8 — Smart App Automation ✅**
 
 ## Author
 
