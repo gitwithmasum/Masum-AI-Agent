@@ -1,32 +1,21 @@
-# Masum AI Agent Mobile v5.9
+# Masum AI Agent Mobile v6.0
 
-Native Android Cirilla / Geralt companion with on-device camera OCR and basic visual labeling.
+v6.0 introduces the Unified Personal AI Brain.
 
-## Camera voice commands
+Android and Windows share the laptop's existing local multi-agent core and SQLite conversation memory when paired.
 
-```text
-Hey Cirilla, scan this document
-Hey Cirilla, read text with camera
-Hey Cirilla, what do you see?
-Hey Cirilla, describe with camera
+Flow: Android voice → HMAC-authenticated bridge → Windows companion → localhost-only dashboard API → Ollama / multi-agent core → shared session → answer to Android TTS.
 
-হেই সিরিলা, ডকুমেন্ট স্ক্যান করো
-হেই সিরিলা, ক্যামেরা দিয়ে লেখা পড়ো
-হেই সিরিলা, ক্যামেরা দিয়ে কী দেখছ বলো
-```
+Examples:
+- Hey Cirilla, brain status
+- Hey Cirilla, ask AI explain machine learning simply
+- Hey Cirilla, explain polymorphism in Bangla
+- Hey Cirilla, summarize my Gmail
+- Hey Cirilla, analyze my GitHub repository
+- হেই সিরিলা, এআইকে জিজ্ঞেস করো machine learning কী
 
-The user explicitly captures each photo in the Android camera UI.
+Unknown non-device commands can fall back to the unified AI brain. Device actions remain platform-specific and safe: Android actions run on Android; Windows actions run on Windows. The AI brain has no arbitrary shell execution.
 
-## On-device analysis
+The Windows companion can start the existing project dashboard silently on demand using the project's local Python environment. Ollama must be available for local AI mode.
 
-- Text recognition uses the bundled ML Kit Latin-script OCR model.
-- Basic visual description uses the bundled ML Kit image-labeling model.
-- Captures are written only to a temporary app cache file and deleted on activity cleanup.
-- Photos are not uploaded to Masum AI Agent servers.
-- Obvious OTP / verification / security-code text is not spoken aloud.
-
-The image-labeling mode provides general labels rather than full generative visual reasoning. It does not identify people.
-
-Bangla voice commands are supported, but the bundled OCR recognizer is for Latin-script text; Bengali-script document OCR is not claimed as reliable in this phase.
-
-All earlier v5.x features remain available.
+All earlier v5.x Android features remain available.

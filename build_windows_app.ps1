@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-Write-Host "Masum AI Agent v5.3 - Windows + Mobile Bridge Builder" -ForegroundColor Cyan
+Write-Host "Masum AI Agent v6.0 - Unified AI Builder" -ForegroundColor Cyan
 
 if (-not (Get-Command py -ErrorAction SilentlyContinue)) {
     Write-Host "Python launcher 'py' was not found." -ForegroundColor Red

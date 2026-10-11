@@ -1,5 +1,20 @@
 # Masum AI Agent
 
+## v6.0 — Unified Personal AI Brain
+
+Windows and Android now use one local AI core when paired.
+
+Flow: Android voice → authenticated HMAC bridge → Windows companion → localhost-only dashboard API → Ollama + multi-agent routing → shared SQLite conversation memory → answer back to Android.
+
+Platform-specific actions stay on the correct device: Android handles calls, contacts, notifications, camera, flashlight and Accessibility; Windows handles VS Code, folders and desktop apps. General AI, research, Gmail read-only intelligence and GitHub read-only analysis can use the same laptop brain from either device.
+
+The dashboard remains bound to 127.0.0.1 and is not directly exposed to the LAN. The AI brain does not receive arbitrary shell execution.
+
+Android artifact: Masum-AI-Agent-Android-APK-v6.0
+Windows artifact: Masum-AI-Agent-Windows-Setup-v6.0
+
+---
+
 ## v5.9 — Camera + Visual Assistant
 
 Android Cirilla/Geralt can now launch an explicit camera capture and process the result on-device for Latin-script OCR or general image labels.
@@ -340,7 +355,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v5.9 — Camera + Visual Assistant**
+**v6.0 — Unified Personal AI Brain**
 
 ## Roadmap
 
@@ -371,7 +386,8 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 - v5.6 — Full Phone Controls ✅
 - v5.7 — Screen-Aware Cirilla ✅
 - v5.8 — Smart App Automation ✅
-- **v5.9 — Camera + Visual Assistant ✅**
+- v5.9 — Camera + Visual Assistant ✅
+- **v6.0 — Unified Personal AI Brain ✅**
 
 ## Author
 
