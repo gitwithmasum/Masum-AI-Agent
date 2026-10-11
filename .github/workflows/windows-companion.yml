@@ -63,6 +63,6 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: Masum-AI-Agent-Windows-Setup-v6.0
+          name: Masum-AI-Agent-Windows-Setup-v6.1
           path: installer-output/Masum-AI-Agent-Setup.exe
           if-no-files-found: error

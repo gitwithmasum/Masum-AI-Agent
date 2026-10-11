@@ -34,7 +34,7 @@ from PIL import Image, ImageDraw
 load_dotenv(override=True)
 
 APP_NAME = "Masum AI Agent"
-VERSION = "6.0.0"
+VERSION = "6.1.0"
 LOCAL_APP_DATA = Path(
     os.getenv("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))
 )
@@ -821,6 +821,60 @@ def ask_unified_brain(prompt: str) -> tuple[bool, str, list[str]]:
         return False, f"Unified brain unavailable: {error}", []
 
 
+
+def security_health_text() -> str:
+    project = discover_project_path()
+    brain_ok, brain_detail = brain_status()
+    secret_ready = bool(
+        str(config.get("bridge_secret") or "").strip()
+    )
+    bridge_enabled = bool(
+        config.get("bridge_enabled", True)
+    )
+    brain_local = (
+        BRAIN_URL.startswith("http://127.0.0.1")
+        or BRAIN_URL.startswith("http://localhost")
+    )
+
+    lines = [
+        f"Masum AI Agent Windows Security Health v{VERSION}",
+        f"Wake listening: {'ON' if config.get('wake_enabled', True) else 'OFF'}",
+        f"Bridge enabled: {'YES' if bridge_enabled else 'NO'}",
+        f"Bridge HMAC key configured: {'YES' if secret_ready else 'NO'}",
+        "Replay protection: timestamp + one-time nonce",
+        f"Unified brain URL local-only: {'YES' if brain_local else 'CHECK CONFIG'}",
+        f"Project folder: {'FOUND' if project is not None else 'NOT FOUND'}",
+        f"Unified brain: {'ONLINE' if brain_ok else 'OFFLINE / ON-DEMAND'}",
+        f"Brain detail: {brain_detail if brain_ok else 'Starts on demand when local runtime and Ollama are available.'}",
+        "OS actions: explicit allowlist only",
+        "Arbitrary voice-to-PowerShell/CMD: DISABLED",
+        "Bridge transport: authenticated local HTTP; use trusted private Wi-Fi",
+    ]
+    return "\n".join(lines)
+
+
+def write_security_health_report() -> Path:
+    path = APP_DATA_DIR / "security-health.txt"
+    path.write_text(
+        security_health_text() + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def open_security_health_report(
+    _icon=None,
+    _item=None,
+) -> None:
+    path = write_security_health_report()
+    try:
+        os.startfile(str(path))
+    except Exception:
+        logging.exception(
+            "Could not open security health report."
+        )
+
+
 def bridge_action(action: str) -> tuple[bool, str]:
     action = str(action or "").strip().lower()
 
@@ -835,6 +889,9 @@ def bridge_action(action: str) -> tuple[bool, str]:
     if action == "brain_status":
         ok, detail = start_brain_server()
         return ok, detail
+
+    if action == "security_status":
+        return True, security_health_text()
 
     if action == "open_vscode":
         ok = open_vscode()
@@ -917,7 +974,7 @@ def verify_bridge_request(
 
 
 class BridgeHandler(BaseHTTPRequestHandler):
-    server_version = "MasumBridge/6.0"
+    server_version = "MasumBridge/6.1"
 
     def _json(self, status: int, payload: dict[str, Any]) -> None:
         raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -1109,6 +1166,10 @@ def build_menu() -> pystray.Menu:
         pystray.MenuItem(
             "Open Mobile Pairing Info",
             open_pairing_info,
+        ),
+        pystray.MenuItem(
+            "Open Security Health Report",
+            open_security_health_report,
         ),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Exit", exit_app),

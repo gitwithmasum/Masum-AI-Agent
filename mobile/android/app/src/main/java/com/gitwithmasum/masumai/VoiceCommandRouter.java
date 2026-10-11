@@ -27,6 +27,8 @@ public class VoiceCommandRouter {
     private String pendingContactName;
     private String pendingContactNumber;
     private String pendingContactMessage;
+    private long pendingConfirmationExpiresAt = 0L;
+    private static final long CONFIRMATION_WINDOW_MS = 20_000L;
 
     public VoiceCommandRouter(Context context) {
         this.context = context;
@@ -53,10 +55,23 @@ public class VoiceCommandRouter {
     }
 
     public boolean hasPendingConfirmation() {
-        return (
+        boolean pending = (
             pendingReplySource != null &&
             pendingReplyText != null
         ) || pendingContactAction != null;
+
+        if (!pending) return false;
+
+        if (
+            pendingConfirmationExpiresAt > 0L &&
+            System.currentTimeMillis() >
+                pendingConfirmationExpiresAt
+        ) {
+            clearAllPendingActions();
+            return false;
+        }
+
+        return true;
     }
 
     private void clearPendingReply() {
@@ -74,6 +89,13 @@ public class VoiceCommandRouter {
     private void clearAllPendingActions() {
         clearPendingReply();
         clearPendingContactAction();
+        pendingConfirmationExpiresAt = 0L;
+    }
+
+    private void armConfirmation() {
+        pendingConfirmationExpiresAt =
+            System.currentTimeMillis() +
+            CONFIRMATION_WINDOW_MS;
     }
 
     public void execute(String raw, String persona) {
@@ -176,6 +198,34 @@ public class VoiceCommandRouter {
             cmd.equals("সিরিলা মোড") ||
             cmd.equals("সিরিলা চালু করো")) {
             speak("Cirilla mode active.");
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "security status",
+            "permission status",
+            "local security status",
+            "security health",
+            "সিকিউরিটি স্ট্যাটাস",
+            "পারমিশন স্ট্যাটাস",
+            "সিকিউরিটি হেলথ"
+        )) {
+            speak(
+                SecurityHealthManager.spokenSummary(
+                    context
+                )
+            );
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "laptop security status",
+            "windows security status",
+            "ল্যাপটপ সিকিউরিটি স্ট্যাটাস"
+        )) {
+            sendLaptopAction("security_status");
             return;
         }
 
@@ -347,6 +397,7 @@ public class VoiceCommandRouter {
                     ? "messenger"
                     : "whatsapp";
             pendingReplyText = banglaReply.group(1).trim();
+            armConfirmation();
 
             speak(
                 "এই রিপ্লাই পাঠাবো: " + pendingReplyText +
@@ -367,6 +418,7 @@ public class VoiceCommandRouter {
             pendingReplySource =
                 replyMessage.group(1).toLowerCase(Locale.ROOT);
             pendingReplyText = replyMessage.group(2).trim();
+            armConfirmation();
 
             String target =
                 pendingReplySource.equals("notification")
@@ -699,6 +751,7 @@ public class VoiceCommandRouter {
             pendingContactName = contact.name;
             pendingContactNumber = contact.number;
             pendingContactMessage = "";
+            armConfirmation();
 
             speak(
                 "Call " + contact.name +
@@ -753,6 +806,7 @@ public class VoiceCommandRouter {
             pendingContactName = contact.name;
             pendingContactNumber = contact.number;
             pendingContactMessage = smsText;
+            armConfirmation();
 
             speak(
                 "Prepare SMS to " + contact.name +
@@ -808,6 +862,7 @@ public class VoiceCommandRouter {
             pendingContactName = contact.name;
             pendingContactNumber = contact.number;
             pendingContactMessage = whatsappText;
+            armConfirmation();
 
             speak(
                 "Prepare WhatsApp message to " +

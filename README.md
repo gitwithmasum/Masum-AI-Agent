@@ -1,5 +1,23 @@
 # Masum AI Agent
 
+## v6.1 — Security + Permission Center
+
+Android now has a consolidated Security + Permission Center with local readiness checks for microphone, assistant role, SIM call control, notification access, Accessibility, contacts, outgoing calls, reminders, camera, system-settings access, DND access and unified laptop pairing.
+
+Risky outgoing actions use short-lived confirmation state: pending call/message/reply confirmations expire after 20 seconds. Protected password/PIN/OTP/CVV/security-code behavior remains enforced.
+
+Windows adds a Security Health Report covering bridge authentication, replay protection, localhost-only brain configuration, project/brain readiness and the no-arbitrary-shell policy.
+
+Android voice:
+- "Security status"
+- "Permission status"
+- "Laptop security status"
+
+Android artifact: `Masum-AI-Agent-Android-APK-v6.1`  
+Windows artifact: `Masum-AI-Agent-Windows-Setup-v6.1`
+
+---
+
 ## v6.0 — Unified Personal AI Brain
 
 Windows and Android now use one local AI core when paired.
@@ -355,7 +373,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v6.0 — Unified Personal AI Brain**
+**v6.1 — Security + Permission Center**
 
 ## Roadmap
 
@@ -387,7 +405,8 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 - v5.7 — Screen-Aware Cirilla ✅
 - v5.8 — Smart App Automation ✅
 - v5.9 — Camera + Visual Assistant ✅
-- **v6.0 — Unified Personal AI Brain ✅**
+- v6.0 — Unified Personal AI Brain ✅
+- **v6.1 — Security + Permission Center ✅**
 
 ## Author
 

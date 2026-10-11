@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("MASUM AI AGENT\nMobile Companion v6.0");
+        title.setText("MASUM AI AGENT\nMobile Companion v6.1");
         title.setTextColor(Color.rgb(103, 232, 255));
         title.setTextSize(26);
         title.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -112,6 +112,25 @@ public class MainActivity extends Activity {
         Button flashlightPermission = button("8 — ALLOW FLASHLIGHT ACCESS");
         flashlightPermission.setOnClickListener(v -> requestFlashlightPermission());
         root.addView(flashlightPermission, matchWrap());
+
+        TextView securityTitle = new TextView(this);
+        securityTitle.setText("\nSECURITY + HEALTH");
+        securityTitle.setTextColor(Color.rgb(103, 232, 255));
+        securityTitle.setTextSize(17);
+        root.addView(securityTitle, matchWrap());
+
+        Button securityCenter = button(
+            "OPEN SECURITY + PERMISSION CENTER"
+        );
+        securityCenter.setOnClickListener(v ->
+            startActivity(
+                new Intent(
+                    this,
+                    SecurityCenterActivity.class
+                )
+            )
+        );
+        root.addView(securityCenter, matchWrap());
 
         TextView languageTitle = new TextView(this);
         languageTitle.setText("\nVOICE LANGUAGE");
