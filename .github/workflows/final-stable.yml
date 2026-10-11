@@ -1,0 +1,289 @@
+name: Final Stable Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      real_device_qa_confirmed:
+        description: "I completed the real Android phone QA checklist"
+        required: true
+        type: boolean
+        default: false
+      publish_github_release:
+        description: "Publish/update GitHub Release v1.0.0 after all gates pass"
+        required: true
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+jobs:
+  android-final:
+    runs-on: ubuntu-latest
+    env:
+      ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+
+    steps:
+      - name: Require real-device QA confirmation
+        shell: bash
+        run: |
+          if [ "${{ inputs.real_device_qa_confirmed }}" != "true" ]; then
+            echo "Final stable release blocked: real-device QA is not confirmed."
+            exit 1
+          fi
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Require permanent Android signing identity
+        shell: bash
+        run: |
+          missing=0
+          for name in             ANDROID_RELEASE_KEYSTORE_BASE64             ANDROID_KEYSTORE_PASSWORD             ANDROID_KEY_ALIAS             ANDROID_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "Missing required Actions secret: $name"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Final stable release blocked until permanent signing secrets are configured."
+            exit 1
+          fi
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Run release QA
+        run: python scripts/release_qa.py
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Install Android SDK packages
+        shell: bash
+        run: |
+          yes | sdkmanager "platforms;android-35" "build-tools;35.0.0" || true
+
+      - name: Install Gradle 8.9
+        shell: bash
+        run: |
+          curl -L -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.9-bin.zip
+          unzip -q /tmp/gradle.zip -d /tmp
+
+      - name: Prepare release keystore
+        shell: bash
+        run: |
+          echo "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/masum-release.jks"
+          echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/masum-release.jks" >> "$GITHUB_ENV"
+
+          keytool -list             -keystore "$RUNNER_TEMP/masum-release.jks"             -storepass "$ANDROID_KEYSTORE_PASSWORD"             -alias "$ANDROID_KEY_ALIAS" > /dev/null
+
+      - name: Build signed Android 1.0.0
+        shell: bash
+        run: |
+          /tmp/gradle-8.9/bin/gradle             -p mobile/android             assembleRelease             -PstableRelease=true             --stacktrace
+
+          test -f mobile/android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Verify Android signature
+        shell: bash
+        run: |
+          mkdir -p final-android
+
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify             --verbose             --print-certs             mobile/android/app/build/outputs/apk/release/app-release.apk             | tee final-android/ANDROID-SIGNING-CERT.txt
+
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk             final-android/Masum-AI-Agent-Android-v1.0.0.apk
+
+          sha256sum final-android/Masum-AI-Agent-Android-v1.0.0.apk             > final-android/ANDROID-SHA256.txt
+
+      - name: Upload signed Android stable
+        uses: actions/upload-artifact@v4
+        with:
+          name: Masum-AI-Agent-Android-v1.0.0
+          path: final-android/
+          if-no-files-found: error
+
+  windows-final:
+    runs-on: windows-latest
+
+    steps:
+      - name: Require real-device QA confirmation
+        shell: pwsh
+        run: |
+          if ("${{ inputs.real_device_qa_confirmed }}" -ne "true") {
+            throw "Final stable release blocked: real-device QA is not confirmed."
+          }
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-desktop.txt
+          python -m pip install -r requirements.txt
+
+      - name: Create Windows icon
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path build | Out-Null
+          python -c "from PIL import Image; Image.open('dashboard/masum-ai-agent-logo.webp').convert('RGBA').save('build/masum-ai-agent.ico', sizes=[(16,16),(32,32),(48,48),(64,64),(128,128),(256,256)])"
+
+      - name: Build Windows companion
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name MasumAIAgent --icon build\masum-ai-agent.ico --collect-all faster_whisper --collect-all ctranslate2 --collect-all av --collect-all sounddevice --hidden-import pyttsx3.drivers --hidden-import pyttsx3.drivers.sapi5 desktop_companion.py
+
+      - name: Build bundled AI brain
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed --name MasumAIBrain --icon build\masum-ai-agent.ico --add-data "dashboard;dashboard" --collect-all agents --collect-all openai --collect-all ddgs --collect-all pypdf --collect-all docx --collect-all googleapiclient --collect-all google_auth_oauthlib dashboard.py
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Build Windows 1.0.0 installer
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "installer\MasumAI.iss"
+
+          New-Item -ItemType Directory -Force -Path final-windows | Out-Null
+          Copy-Item             "installer-output\Masum-AI-Agent-Setup-v1.0.0.exe"             "final-windows\Masum-AI-Agent-Windows-Setup-v1.0.0.exe"
+
+          $hash = (Get-FileHash             "final-windows\Masum-AI-Agent-Windows-Setup-v1.0.0.exe"             -Algorithm SHA256).Hash.ToLower()
+
+          "$hash  Masum-AI-Agent-Windows-Setup-v1.0.0.exe" |
+            Set-Content               "final-windows\WINDOWS-SHA256.txt"               -Encoding ascii
+
+      - name: Upload Windows stable
+        uses: actions/upload-artifact@v4
+        with:
+          name: Masum-AI-Agent-Windows-v1.0.0
+          path: final-windows/
+          if-no-files-found: error
+
+  package-final:
+    runs-on: ubuntu-latest
+    needs:
+      - android-final
+      - windows-final
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Android stable
+        uses: actions/download-artifact@v4
+        with:
+          name: Masum-AI-Agent-Android-v1.0.0
+          path: final-package
+
+      - name: Download Windows stable
+        uses: actions/download-artifact@v4
+        with:
+          name: Masum-AI-Agent-Windows-v1.0.0
+          path: final-package
+
+      - name: Create release manifest and checksums
+        shell: bash
+        run: |
+          cp release/FINAL_RELEASE_CHECKLIST.md final-package/
+          cp release/FIRST_RUN_GUIDE.md final-package/
+          cp release/RELEASE_NOTES_1.0.0.md final-package/
+
+          (
+            cd final-package
+            sha256sum               Masum-AI-Agent-Android-v1.0.0.apk               Masum-AI-Agent-Windows-Setup-v1.0.0.exe               > SHA256SUMS.txt
+          )
+
+          python - <<'PY'
+          import hashlib
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          root = Path("final-package")
+          artifacts = []
+
+          for name in (
+              "Masum-AI-Agent-Android-v1.0.0.apk",
+              "Masum-AI-Agent-Windows-Setup-v1.0.0.exe",
+          ):
+              path = root / name
+              artifacts.append(
+                  {
+                      "name": name,
+                      "bytes": path.stat().st_size,
+                      "sha256": hashlib.sha256(
+                          path.read_bytes()
+                      ).hexdigest(),
+                  }
+              )
+
+          manifest = {
+              "product": "Masum AI Agent",
+              "version": "1.0.0",
+              "channel": "stable",
+              "git_commit": os.environ["GITHUB_SHA"],
+              "built_at_utc": datetime.now(
+                  timezone.utc
+              ).isoformat(),
+              "android": {
+                  "signed_release": True,
+                  "version": "1.0.0",
+                  "version_code": 10001,
+              },
+              "windows": {
+                  "self_contained_brain": True,
+                  "version": "1.0.0",
+                  "code_signed": False,
+              },
+              "real_device_qa_confirmed": True,
+              "artifacts": artifacts,
+          }
+
+          (root / "RELEASE-MANIFEST.json").write_text(
+              json.dumps(
+                  manifest,
+                  indent=2,
+                  ensure_ascii=False,
+              ) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Upload final stable package
+        uses: actions/upload-artifact@v4
+        with:
+          name: Masum-AI-Agent-v1.0.0-Final-Stable
+          path: final-package/
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: ${{ inputs.publish_github_release }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view v1.0.0 > /dev/null 2>&1; then
+            gh release upload v1.0.0 final-package/* --clobber
+          else
+            gh release create v1.0.0               final-package/*               --target "$GITHUB_SHA"               --title "Masum AI Agent 1.0.0"               --notes-file release/RELEASE_NOTES_1.0.0.md
+          fi
