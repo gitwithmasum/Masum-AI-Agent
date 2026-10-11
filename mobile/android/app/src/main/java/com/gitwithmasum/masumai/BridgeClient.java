@@ -58,6 +58,49 @@ public final class BridgeClient {
         String action,
         Callback callback
     ) {
+        JSONObject payload = new JSONObject();
+        try {
+            payload.put("action", action);
+        } catch (Exception ignored) {}
+
+        sendRequest(
+            context,
+            "/action",
+            payload,
+            8000,
+            callback
+        );
+    }
+
+    public static void askBrain(
+        Context context,
+        String prompt,
+        Callback callback
+    ) {
+        JSONObject payload = new JSONObject();
+        try {
+            payload.put(
+                "prompt",
+                prompt == null ? "" : prompt.trim()
+            );
+        } catch (Exception ignored) {}
+
+        sendRequest(
+            context,
+            "/brain",
+            payload,
+            180000,
+            callback
+        );
+    }
+
+    private static void sendRequest(
+        Context context,
+        String path,
+        JSONObject payload,
+        int readTimeout,
+        Callback callback
+    ) {
         new Thread(() -> {
             if (!isConfigured(context)) {
                 callback.onResult(
@@ -75,9 +118,6 @@ public final class BridgeClient {
                 String timestamp =
                     String.valueOf(System.currentTimeMillis() / 1000L);
                 String nonce = UUID.randomUUID().toString();
-
-                JSONObject payload = new JSONObject();
-                payload.put("action", action);
                 String body = payload.toString();
 
                 String signature = sign(
@@ -86,11 +126,11 @@ public final class BridgeClient {
                 );
 
                 connection = (HttpURLConnection)
-                    new URL(url + "/action").openConnection();
+                    new URL(url + path).openConnection();
 
                 connection.setRequestMethod("POST");
-                connection.setConnectTimeout(4000);
-                connection.setReadTimeout(6000);
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(readTimeout);
                 connection.setDoOutput(true);
                 connection.setRequestProperty(
                     "Content-Type",
@@ -109,17 +149,20 @@ public final class BridgeClient {
                     signature
                 );
 
-                byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                byte[] bytes =
+                    body.getBytes(StandardCharsets.UTF_8);
                 connection.setFixedLengthStreamingMode(bytes.length);
                 connection.getOutputStream().write(bytes);
 
                 int status = connection.getResponseCode();
-                InputStream stream = status >= 200 && status < 300
-                    ? connection.getInputStream()
-                    : connection.getErrorStream();
+                InputStream stream =
+                    status >= 200 && status < 300
+                        ? connection.getInputStream()
+                        : connection.getErrorStream();
 
                 String response = readAll(stream);
                 JSONObject result = new JSONObject(response);
+
                 callback.onResult(
                     result.optBoolean("ok", false),
                     result.optString(
@@ -130,12 +173,19 @@ public final class BridgeClient {
             } catch (Exception error) {
                 callback.onResult(
                     false,
-                    "Laptop bridge is unreachable. Check Wi-Fi, pairing and Windows Firewall."
+                    path.equals("/brain")
+                        ? "Unified AI brain is unreachable. Check laptop, Ollama, Wi-Fi and pairing."
+                        : "Laptop bridge is unreachable. Check Wi-Fi, pairing and Windows Firewall."
                 );
             } finally {
-                if (connection != null) connection.disconnect();
+                if (connection != null) {
+                    connection.disconnect();
+                }
             }
-        }, "MasumBridgeClient").start();
+        }, path.equals("/brain")
+            ? "MasumUnifiedBrainClient"
+            : "MasumBridgeClient"
+        ).start();
     }
 
     private static String normalizeUrl(String value) {

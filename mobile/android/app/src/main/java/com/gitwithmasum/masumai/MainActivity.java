@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("MASUM AI AGENT\nMobile Companion v5.9");
+        title.setText("MASUM AI AGENT\nMobile Companion v6.0");
         title.setTextColor(Color.rgb(103, 232, 255));
         title.setTextSize(26);
         title.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -60,7 +60,7 @@ public class MainActivity extends Activity {
             "7. Allow Reminder Notifications\n" +
             "8. Allow Flashlight access\n" +
             "9. Allow system settings / DND on first use when Android asks\n" +
-            "10. Pair with the Windows companion for laptop voice control\n\n" +
+            "10. Pair with the Windows companion for unified laptop + mobile AI\n\n" +
             "Cirilla/Geralt never auto-answer calls. A call action only runs after your explicit voice command."
         );
         intro.setTextColor(Color.WHITE);
@@ -128,7 +128,7 @@ public class MainActivity extends Activity {
         root.addView(language, matchWrap());
 
         TextView bridgeTitle = new TextView(this);
-        bridgeTitle.setText("\nMOBILE ↔ LAPTOP BRIDGE");
+        bridgeTitle.setText("\nUNIFIED MOBILE ↔ LAPTOP AI BRIDGE");
         bridgeTitle.setTextColor(Color.rgb(103, 232, 255));
         bridgeTitle.setTextSize(17);
         root.addView(bridgeTitle, matchWrap());
@@ -149,7 +149,7 @@ public class MainActivity extends Activity {
         bridgeKey.setText(BridgeClient.getSecret(this));
         root.addView(bridgeKey, matchWrap());
 
-        Button saveBridge = button("SAVE + TEST LAPTOP PAIRING");
+        Button saveBridge = button("SAVE + TEST UNIFIED AI PAIRING");
         saveBridge.setOnClickListener(v -> {
             BridgeClient.savePairing(
                 this,
@@ -273,7 +273,15 @@ public class MainActivity extends Activity {
             "Hey Cirilla, describe with camera\n" +
             "হেই সিরিলা, ডকুমেন্ট স্ক্যান করো\n" +
             "হেই সিরিলা, ক্যামেরা দিয়ে লেখা পড়ো\n" +
-            "হেই সিরিলা, ক্যামেরা দিয়ে কী দেখছ বলো\n" +
+            "হেই সিরিলা, ক্যামেরা দিয়ে কী দেখছ বলো\n\n" +
+            "UNIFIED AI BRAIN EXAMPLES\n\n" +
+            "Hey Cirilla, brain status\n" +
+            "Hey Cirilla, ask AI explain machine learning simply\n" +
+            "Hey Cirilla, explain polymorphism in Bangla\n" +
+            "Hey Cirilla, summarize my Gmail\n" +
+            "Hey Cirilla, analyze my GitHub repository\n" +
+            "হেই সিরিলা, এআইকে জিজ্ঞেস করো machine learning কী\n" +
+            "হেই সিরিলা, আমার GitHub repository analyze করো\n" +
             "Hey Cirilla, switch to Geralt"
         );
         commands.setTextColor(Color.LTGRAY);

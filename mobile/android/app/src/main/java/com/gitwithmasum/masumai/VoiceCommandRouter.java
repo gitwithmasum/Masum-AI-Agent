@@ -179,6 +179,44 @@ public class VoiceCommandRouter {
             return;
         }
 
+        if (matches(
+            cmd,
+            "unified brain status",
+            "brain status",
+            "ai brain status",
+            "ইউনিফাইড ব্রেইন স্ট্যাটাস",
+            "এআই ব্রেইন স্ট্যাটাস"
+        )) {
+            sendLaptopAction("brain_status");
+            return;
+        }
+
+        Matcher askBrainEnglish = Pattern
+            .compile(
+                "^(?:ask\\s+(?:cirilla|geralt|ai)|ask\\s+the\\s+ai|ai\\s+question)\\s+(.+)$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
+        Matcher askBrainBangla = Pattern
+            .compile(
+                "^(?:সিরিলাকে\\s+জিজ্ঞেস\\s+করো|এআইকে\\s+জিজ্ঞেস\\s+করো|এআই\\s+কে\\s+জিজ্ঞেস\\s+করো)\\s+(.+)$"
+            )
+            .matcher(raw.trim());
+
+        if (
+            askBrainEnglish.find() ||
+            askBrainBangla.find()
+        ) {
+            String question =
+                askBrainEnglish.matches()
+                    ? askBrainEnglish.group(1)
+                    : askBrainBangla.group(1);
+
+            askUnifiedBrain(question);
+            return;
+        }
+
         String callSource = callSource(cmd);
 
         if (isWhoIsCalling(cmd)) {
@@ -1780,10 +1818,15 @@ public class VoiceCommandRouter {
             return;
         }
 
-        speak(
-            ("geralt".equals(persona) ? "Geralt here. " : "Cirilla here. ") +
-            "That mobile action is not on my safe voice list yet."
-        );
+        if (BridgeClient.isConfigured(context)) {
+            askUnifiedBrain(raw);
+        } else {
+            speak(
+                ("geralt".equals(persona) ? "Geralt here. " : "Cirilla here. ") +
+                "That mobile action is not on my safe voice list yet. " +
+                "Pair the laptop bridge to use the unified AI brain."
+            );
+        }
     }
 
     private String normalizeDigits(String value) {
@@ -1981,6 +2024,35 @@ public class VoiceCommandRouter {
         context.checkSelfPermission(
             Manifest.permission.READ_PHONE_STATE
         ) == PackageManager.PERMISSION_GRANTED;
+    }
+
+    private void askUnifiedBrain(String prompt) {
+        String question =
+            prompt == null ? "" : prompt.trim();
+
+        if (question.isBlank()) {
+            speak("Tell me what you want to ask.");
+            return;
+        }
+
+        if (!BridgeClient.isConfigured(context)) {
+            speak(
+                "Pair this phone with the Windows companion to use the unified AI brain."
+            );
+            return;
+        }
+
+        speak("Thinking on the unified brain.");
+
+        BridgeClient.askBrain(
+            context,
+            question,
+            (ok, message) -> speak(
+                ok
+                    ? message
+                    : "Unified brain error. " + message
+            )
+        );
     }
 
     private void sendLaptopAction(String action) {
