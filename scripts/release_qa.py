@@ -38,7 +38,7 @@ def main() -> None:
         rows,
     )
     check(
-        'version="6.3.0"' in dashboard,
+        f'version="{EXPECTED}"' in dashboard,
         "Bundled AI brain version matches 1.0.0",
         rows,
     )
@@ -50,7 +50,7 @@ def main() -> None:
         rows,
     )
     check(
-        '#define MyAppVersion "6.3.0"' in installer,
+        f'#define MyAppVersion "{EXPECTED}"' in installer,
         "Windows installer version matches 1.0.0",
         rows,
     )
