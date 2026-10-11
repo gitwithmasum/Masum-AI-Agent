@@ -1213,8 +1213,10 @@ def listener_loop() -> None:
                 recovery_delay = 1.0
                 continue
 
-            detected, inline_command =
-                extract_wake_command(text)
+            (
+                detected,
+                inline_command,
+            ) = extract_wake_command(text)
 
             if not detected:
                 recovery_delay = 1.0
