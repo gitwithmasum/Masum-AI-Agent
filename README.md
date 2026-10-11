@@ -1,5 +1,25 @@
 # Masum AI Agent
 
+## v5.7 — Screen-Aware Cirilla
+
+Android Cirilla/Geralt can now inspect useful visible UI labels, find controls and perform bounded scroll-search without exposing protected fields.
+
+```text
+Hey Cirilla, what is on my screen?
+Hey Cirilla, find Submit
+Hey Cirilla, scroll until you find Settings
+
+হেই সিরিলা, স্ক্রিনে কী আছে?
+হেই সিরিলা, Submit খুঁজে বের করো
+হেই সিরিলা, Settings পাওয়া পর্যন্ত স্ক্রল করো
+```
+
+Password/PIN/OTP/CVV/security-code fields are filtered, and typing into password/protected fields is blocked.
+
+Artifact: `Masum-AI-Agent-Android-APK-v5.7`
+
+---
+
 ## v5.6 — Full Phone Controls
 
 Android Cirilla/Geralt now adds safe voice control for flashlight, battery, brightness, Do Not Disturb, auto-rotate, media, screenshots and hotspot settings.
@@ -274,7 +294,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v5.6 — Full Phone Controls**
+**v5.7 — Screen-Aware Cirilla**
 
 ## Roadmap
 
@@ -302,7 +322,8 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 - v5.3 — Bangla Voice + Mobile ↔ Laptop Bridge ✅
 - v5.4 — Contacts + Messaging Assistant ✅
 - v5.5 — Alarm + Timer + Reminder + Calendar + Notes ✅
-- **v5.6 — Full Phone Controls ✅**
+- v5.6 — Full Phone Controls ✅
+- **v5.7 — Screen-Aware Cirilla ✅**
 
 ## Author
 

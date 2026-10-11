@@ -1289,6 +1289,118 @@ public class VoiceCommandRouter {
             return;
         }
 
+        if (matches(
+            cmd,
+            "what is on my screen",
+            "what's on my screen",
+            "read this screen",
+            "read screen",
+            "describe screen",
+            "স্ক্রিনে কী আছে",
+            "স্ক্রিনে কি আছে",
+            "এই স্ক্রিনটা পড়ো",
+            "এই স্ক্রিনটা পড়ো",
+            "স্ক্রিনটা পড়ো",
+            "স্ক্রিনটা পড়ো"
+        )) {
+            CirillaAccessibilityService screen =
+                CirillaAccessibilityService.getInstance();
+
+            if (screen == null) {
+                speak(
+                    "Enable Accessibility Voice Control first."
+                );
+                return;
+            }
+
+            CirillaAccessibilityService.ScreenResult result =
+                screen.describeScreen();
+
+            speak(result.message);
+            return;
+        }
+
+        Matcher scrollFindEnglish = Pattern
+            .compile(
+                "^(?:scroll\\s+until\\s+(?:you\\s+)?find|scroll\\s+to\\s+find)\\s+(.+)$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
+        Matcher scrollFindBangla = Pattern
+            .compile(
+                "^(.+?)\\s+(?:পাওয়া|পাওয়া)\\s+পর্যন্ত\\s+স্ক্রল\\s+করো$"
+            )
+            .matcher(raw.trim());
+
+        if (
+            scrollFindEnglish.find() ||
+            scrollFindBangla.find()
+        ) {
+            String target =
+                scrollFindEnglish.matches()
+                    ? scrollFindEnglish.group(1).trim()
+                    : scrollFindBangla.group(1).trim();
+
+            CirillaAccessibilityService screen =
+                CirillaAccessibilityService.getInstance();
+
+            if (screen == null) {
+                speak(
+                    "Enable Accessibility Voice Control first."
+                );
+                return;
+            }
+
+            speak("Searching the screen for " + target + ".");
+
+            screen.scrollUntilFind(
+                target,
+                6,
+                (found, message) -> speak(message)
+            );
+            return;
+        }
+
+        Matcher findEnglish = Pattern
+            .compile(
+                "^(?:find|locate)\\s+(.+)$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
+        Matcher findBangla = Pattern
+            .compile(
+                "^(.+?)\\s+(?:খুঁজে\\s+বের\\s+করো|খুঁজে\\s+দাও)$"
+            )
+            .matcher(raw.trim());
+
+        if (
+            findEnglish.find() ||
+            findBangla.find()
+        ) {
+            String target =
+                findEnglish.matches()
+                    ? findEnglish.group(1).trim()
+                    : findBangla.group(1).trim();
+
+            CirillaAccessibilityService screen =
+                CirillaAccessibilityService.getInstance();
+
+            if (screen == null) {
+                speak(
+                    "Enable Accessibility Voice Control first."
+                );
+                return;
+            }
+
+            CirillaAccessibilityService.ScreenResult result =
+                screen.findOnScreen(target);
+
+            speak(result.message);
+            return;
+        }
+
         Matcher click = Pattern
             .compile("^(?:click|tap|press)\\s+(.+)$")
             .matcher(cmd);

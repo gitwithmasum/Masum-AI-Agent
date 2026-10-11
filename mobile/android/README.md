@@ -1,53 +1,37 @@
-# Masum AI Agent Mobile v5.6
+# Masum AI Agent Mobile v5.7
 
-Native Android Cirilla / Geralt companion with expanded safe phone controls.
+Native Android Cirilla / Geralt companion with screen-aware accessibility intelligence.
 
-## System voice controls
-
-```text
-Hey Cirilla, flashlight on
-Hey Cirilla, flashlight off
-Hey Cirilla, battery status
-
-Hey Cirilla, brightness 60 percent
-Hey Cirilla, brightness up
-Hey Cirilla, brightness down
-
-Hey Cirilla, do not disturb on
-Hey Cirilla, do not disturb off
-
-Hey Cirilla, auto rotate on
-Hey Cirilla, auto rotate off
-
-Hey Cirilla, play music
-Hey Cirilla, pause music
-Hey Cirilla, next song
-Hey Cirilla, previous song
-
-Hey Cirilla, take screenshot
-Hey Cirilla, hotspot settings
-```
-
-Bangla aliases are included, for example:
+## Screen-aware commands
 
 ```text
-হেই সিরিলা, টর্চ চালু করো
-হেই সিরিলা, ব্যাটারি কত
-হেই সিরিলা, ব্রাইটনেস ৬০ পারসেন্ট করো
-হেই সিরিলা, ডিএনডি চালু করো
-হেই সিরিলা, অটো রোটেট বন্ধ করো
-হেই সিরিলা, পরের গান চালাও
-হেই সিরিলা, স্ক্রিনশট নাও
-হেই সিরিলা, হটস্পট সেটিংস খোলো
+Hey Cirilla, what is on my screen?
+Hey Cirilla, read this screen
+Hey Cirilla, find Submit
+Hey Cirilla, scroll until you find Settings
+
+হেই সিরিলা, স্ক্রিনে কী আছে?
+হেই সিরিলা, এই স্ক্রিনটা পড়ো
+হেই সিরিলা, Submit খুঁজে বের করো
+হেই সিরিলা, Settings পাওয়া পর্যন্ত স্ক্রল করো
 ```
 
-## Android permission boundaries
+Cirilla reads a compact summary of useful visible labels instead of dumping the full accessibility tree.
 
-- Flashlight uses Android CameraManager and needs the app's one-time **Flashlight access** permission.
-- Brightness and rotation require Android's **Modify system settings** approval once.
-- DND requires Android's **Do Not Disturb access** approval once.
-- Screenshot uses Accessibility global screenshot and therefore needs Accessibility Voice Control enabled.
-- Hotspot is intentionally opened as settings instead of silently toggled because modern Android restricts direct hotspot control for ordinary third-party apps.
-- Media control sends standard Android media key events.
+## Privacy and safety
 
-All earlier calls, messaging, notifications, Bangla voice, laptop bridge, alarms, reminders, calendar and notes remain available.
+Screen-aware mode intentionally filters:
+
+- password/passcode fields
+- PIN fields
+- OTP / verification-code fields
+- CVV/security-code fields
+- text-entry into protected/password fields
+
+Obvious OTP/security-code text is replaced with protected information instead of being spoken aloud.
+
+`scroll until you find X` searches the visible screen, scrolls in short asynchronous steps, and stops when the target is found, scrolling ends, or the bounded search limit is reached.
+
+Accessibility Voice Control must be enabled for these features.
+
+All earlier calls, messaging, notifications, Bangla voice, mobile↔laptop bridge, productivity and phone controls remain available.
