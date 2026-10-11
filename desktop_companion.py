@@ -11,10 +11,13 @@ import secrets
 import shutil
 import socket
 import subprocess
+import sys
 import tempfile
 import threading
 import time
 import wave
+import urllib.error
+import urllib.request
 import webbrowser
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -31,7 +34,7 @@ from PIL import Image, ImageDraw
 load_dotenv(override=True)
 
 APP_NAME = "Masum AI Agent"
-VERSION = "5.3.0"
+VERSION = "6.0.0"
 LOCAL_APP_DATA = Path(
     os.getenv("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))
 )
@@ -58,6 +61,9 @@ COMMAND_MODEL_NAME = (
 )
 COMPUTE_TYPE = os.getenv("DESKTOP_COMPUTE_TYPE", "int8").strip() or "int8"
 BRIDGE_PORT = int(os.getenv("DESKTOP_BRIDGE_PORT", "8767"))
+BRAIN_URL = os.getenv("MASUM_BRAIN_URL", "http://127.0.0.1:8765").strip().rstrip("/")
+BRAIN_START_TIMEOUT = float(os.getenv("MASUM_BRAIN_START_TIMEOUT", "20"))
+BRAIN_REPLY_TIMEOUT = float(os.getenv("MASUM_BRAIN_REPLY_TIMEOUT", "150"))
 
 DEFAULT_CONFIG = {
     "persona": "cirilla",
@@ -92,6 +98,8 @@ TTS_LOCK = threading.Lock()
 MODEL_LOCK = threading.Lock()
 BRIDGE_NONCE_LOCK = threading.Lock()
 BRIDGE_NONCES: dict[str, int] = {}
+BRAIN_PROCESS_LOCK = threading.Lock()
+brain_process: subprocess.Popen | None = None
 
 wake_model: WhisperModel | None = None
 command_model: WhisperModel | None = None
@@ -598,9 +606,11 @@ def handle_command(raw_text: str) -> None:
         set_config_value("wake_enabled", False)
         return
 
-    speak(
-        "I heard the command, but this desktop action is not on my safe allowlist yet."
-    )
+    ok, answer, _agents = ask_unified_brain(raw_text)
+    if ok:
+        speak(answer)
+    else:
+        speak("Unified AI brain is unavailable. " + answer)
 
 
 
@@ -630,17 +640,201 @@ def write_bridge_pairing_info() -> Path:
         f"Bridge URL: http://{lan_ip_address()}:{port}\n"
         f"Pairing Key: {config.get('bridge_secret', '')}\n\n"
         "Use only on a trusted private Wi-Fi network. "
-        "The key authenticates commands with HMAC-SHA256 and is never sent directly.\n",
+        "The key authenticates commands with HMAC-SHA256 and is never sent directly.\n"
+        "Unified Brain: Android questions can route through this bridge to the "
+        "laptop local Ollama multi-agent core.\n",
         encoding="utf-8",
     )
     return path
+
+
+
+def brain_status() -> tuple[bool, str]:
+    try:
+        request = urllib.request.Request(
+            f"{BRAIN_URL}/api/status",
+            headers={"Accept": "application/json"},
+            method="GET",
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            payload = json.loads(
+                response.read().decode("utf-8", errors="replace")
+            )
+        model = (
+            payload.get("ollama", {}).get("detail")
+            or payload.get("model")
+            or "local AI"
+        )
+        return True, f"Unified brain online with {model}."
+    except Exception as error:
+        return False, str(error)
+
+
+def project_python(project: Path) -> str | None:
+    candidates = [
+        project / ".venv" / "Scripts" / "python.exe",
+        project / ".venv" / "Scripts" / "pythonw.exe",
+    ]
+    for candidate in candidates:
+        if candidate.exists():
+            return str(candidate)
+
+    for command in ("python", "py"):
+        found = shutil.which(command)
+        if found:
+            return found
+
+    return None
+
+
+def start_brain_server() -> tuple[bool, str]:
+    global brain_process
+
+    online, detail = brain_status()
+    if online:
+        return True, detail
+
+    project = discover_project_path()
+    if project is None:
+        return False, "Masum AI Agent project folder was not found."
+
+    dashboard = project / "dashboard.py"
+    if not dashboard.exists():
+        return False, "dashboard.py was not found in the project."
+
+    python_exe = project_python(project)
+    if not python_exe:
+        return False, "A Python runtime for the Masum AI Agent project was not found."
+
+    with BRAIN_PROCESS_LOCK:
+        online, detail = brain_status()
+        if online:
+            return True, detail
+
+        if brain_process is None or brain_process.poll() is not None:
+            env = os.environ.copy()
+            env["DASHBOARD_HOST"] = "127.0.0.1"
+            env["DASHBOARD_PORT"] = "8765"
+            env["DASHBOARD_AUTO_OPEN"] = "false"
+
+            creationflags = 0
+            if os.name == "nt":
+                creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+            try:
+                if Path(python_exe).name.lower() == "py.exe":
+                    args = [python_exe, "-3.14", str(dashboard)]
+                else:
+                    args = [python_exe, str(dashboard)]
+
+                brain_process = subprocess.Popen(
+                    args,
+                    cwd=str(project),
+                    env=env,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                    creationflags=creationflags,
+                )
+            except Exception as error:
+                logging.exception("Could not start unified brain server.")
+                return False, f"Could not start the local AI brain: {error}"
+
+    deadline = time.time() + BRAIN_START_TIMEOUT
+    while time.time() < deadline:
+        online, detail = brain_status()
+        if online:
+            return True, detail
+        time.sleep(0.7)
+
+    return False, (
+        "The local AI brain did not become ready in time. "
+        "Check Ollama and the project Python environment."
+    )
+
+
+def clean_spoken_answer(value: str) -> str:
+    text = str(value or "").strip()
+    text = re.sub(r"[*_#>]+", " ", text)
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) > 1800:
+        text = text[:1797].rstrip() + "..."
+    return text
+
+
+def ask_unified_brain(prompt: str) -> tuple[bool, str, list[str]]:
+    question = str(prompt or "").strip()
+    if not question:
+        return False, "The AI prompt is empty.", []
+
+    online, detail = start_brain_server()
+    if not online:
+        return False, detail, []
+
+    payload = json.dumps(
+        {
+            "message": question,
+            "agent": "auto",
+            "team_review": False,
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+
+    request = urllib.request.Request(
+        f"{BRAIN_URL}/api/chat",
+        data=payload,
+        headers={
+            "Content-Type": "application/json; charset=utf-8",
+            "Accept": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(
+            request,
+            timeout=BRAIN_REPLY_TIMEOUT,
+        ) as response:
+            result = json.loads(
+                response.read().decode("utf-8", errors="replace")
+            )
+
+        answer = clean_spoken_answer(result.get("answer") or "")
+        agents = [
+            str(item)
+            for item in result.get("agents", [])
+            if item
+        ]
+        if not answer:
+            return False, "The unified brain returned an empty answer.", agents
+        return True, answer, agents
+    except urllib.error.HTTPError as error:
+        try:
+            body = json.loads(
+                error.read().decode("utf-8", errors="replace")
+            )
+            detail = body.get("detail") or str(error)
+        except Exception:
+            detail = str(error)
+        return False, f"Unified brain error: {detail}", []
+    except Exception as error:
+        logging.exception("Unified brain request failed.")
+        return False, f"Unified brain unavailable: {error}", []
 
 
 def bridge_action(action: str) -> tuple[bool, str]:
     action = str(action or "").strip().lower()
 
     if action == "status":
-        return True, f"Laptop bridge online. {persona_name()} is active."
+        brain_ok, _brain_detail = brain_status()
+        brain_text = "brain online" if brain_ok else "brain available on demand"
+        return True, (
+            f"Laptop bridge online. {persona_name()} is active; "
+            f"{brain_text}."
+        )
+
+    if action == "brain_status":
+        ok, detail = start_brain_server()
+        return ok, detail
 
     if action == "open_vscode":
         ok = open_vscode()
@@ -723,7 +917,7 @@ def verify_bridge_request(
 
 
 class BridgeHandler(BaseHTTPRequestHandler):
-    server_version = "MasumBridge/5.3"
+    server_version = "MasumBridge/6.0"
 
     def _json(self, status: int, payload: dict[str, Any]) -> None:
         raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -734,7 +928,7 @@ class BridgeHandler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_POST(self) -> None:
-        if self.path != "/action":
+        if self.path not in {"/action", "/brain"}:
             self._json(404, {"ok": False, "message": "Not found."})
             return
 
@@ -761,6 +955,19 @@ class BridgeHandler(BaseHTTPRequestHandler):
             payload = json.loads(body.decode("utf-8"))
         except Exception:
             self._json(400, {"ok": False, "message": "Invalid JSON."})
+            return
+
+        if self.path == "/brain":
+            prompt = str(payload.get("prompt") or "").strip()
+            if not prompt:
+                self._json(400, {"ok": False, "message": "Brain prompt is empty."})
+                return
+
+            ok, message, agents = ask_unified_brain(prompt)
+            self._json(
+                200 if ok else 503,
+                {"ok": ok, "message": message, "agents": agents},
+            )
             return
 
         ok, message = bridge_action(str(payload.get("action") or ""))
