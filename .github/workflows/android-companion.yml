@@ -1,4 +1,4 @@
-name: Build Android Companion APK
+name: Build Android Release Candidate
 
 on:
   workflow_dispatch:
@@ -15,6 +15,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ANDROID_RELEASE_KEYSTORE_BASE64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_BASE64 }}
+      ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
 
     steps:
       - name: Checkout
@@ -37,20 +42,53 @@ jobs:
           curl -L -o /tmp/gradle.zip https://services.gradle.org/distributions/gradle-8.9-bin.zip
           unzip -q /tmp/gradle.zip -d /tmp
 
-      - name: Build debug APK
+      - name: Prepare optional release signing
         shell: bash
         run: |
-          /tmp/gradle-8.9/bin/gradle -p mobile/android assembleDebug --stacktrace
+          if [ -n "$ANDROID_RELEASE_KEYSTORE_BASE64" ] &&
+             [ -n "$ANDROID_KEYSTORE_PASSWORD" ] &&
+             [ -n "$ANDROID_KEY_ALIAS" ] &&
+             [ -n "$ANDROID_KEY_PASSWORD" ]; then
+            echo "$ANDROID_RELEASE_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/masum-release.jks"
+            echo "ANDROID_KEYSTORE_PATH=$RUNNER_TEMP/masum-release.jks" >> "$GITHUB_ENV"
+            echo "MASUM_RELEASE_SIGNED=true" >> "$GITHUB_ENV"
+          else
+            echo "MASUM_RELEASE_SIGNED=false" >> "$GITHUB_ENV"
+          fi
 
-      - name: Prepare APK
+      - name: Build debug + release APK
+        shell: bash
+        run: |
+          /tmp/gradle-8.9/bin/gradle -p mobile/android assembleDebug assembleRelease --stacktrace
+
+      - name: Verify release signing state
+        shell: bash
+        run: |
+          if [ "$MASUM_RELEASE_SIGNED" = "true" ]; then
+            test -f mobile/android/app/build/outputs/apk/release/app-release.apk
+            "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose mobile/android/app/build/outputs/apk/release/app-release.apk
+          else
+            test -f mobile/android/app/build/outputs/apk/release/app-release-unsigned.apk
+            echo "Release signing secrets are not configured; RC release APK is intentionally unsigned."
+          fi
+
+      - name: Prepare RC APKs
         shell: bash
         run: |
           mkdir -p mobile-apk
-          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk mobile-apk/Masum-AI-Agent-Mobile-v6.2.apk
+          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk             mobile-apk/Masum-AI-Agent-Mobile-v6.3-RC-debug.apk
 
-      - name: Upload APK
+          if [ "$MASUM_RELEASE_SIGNED" = "true" ]; then
+            cp mobile/android/app/build/outputs/apk/release/app-release.apk               mobile-apk/Masum-AI-Agent-Mobile-v6.3-RC-release-signed.apk
+          else
+            cp mobile/android/app/build/outputs/apk/release/app-release-unsigned.apk               mobile-apk/Masum-AI-Agent-Mobile-v6.3-RC-release-unsigned.apk
+          fi
+
+          sha256sum mobile-apk/*.apk > mobile-apk/SHA256SUMS.txt
+
+      - name: Upload Android RC
         uses: actions/upload-artifact@v4
         with:
-          name: Masum-AI-Agent-Android-APK-v6.2
-          path: mobile-apk/Masum-AI-Agent-Mobile-v6.2.apk
+          name: Masum-AI-Agent-Android-RC-v6.3
+          path: mobile-apk/
           if-no-files-found: error

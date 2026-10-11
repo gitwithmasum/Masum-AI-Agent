@@ -1,5 +1,24 @@
 # Masum AI Agent
 
+## v6.3 — Final Release Candidate + Self-Contained Packaging + Full QA
+
+v6.3 RC prepares the project for the first stable Android + Windows install.
+
+Windows now packages two executables inside one installer: `MasumAIAgent.exe` for the Cirilla/Geralt desktop companion and `MasumAIBrain.exe` for the local FastAPI/Ollama multi-agent brain. The companion prefers the bundled brain and only falls back to the development repository when needed. Persistent packaged-brain data lives under `%LOCALAPPDATA%\MasumAI\brain-data`.
+
+Android now builds both debug and release variants. Release signing is optional in CI and uses only environment/GitHub Actions secrets; no keystore or signing password is committed. Without signing secrets, the RC produces an installable debug APK plus an unsigned release APK for verification.
+
+A Release Candidate QA workflow checks version alignment, Python syntax, localhost brain defaults, signing-secret hygiene, ignored keystore files, and an Android release build.
+
+RC artifacts:
+- `Masum-AI-Agent-Android-RC-v6.3`
+- `Masum-AI-Agent-Windows-Setup-v6.3-RC`
+- `Masum-AI-Agent-v6.3-RC-QA`
+
+This is still an RC, not the final stable release. Real-device Android/OEM testing and permanent release signing are intentionally left for the final gate.
+
+---
+
 ## v6.2 — Stability + Battery + Background Reliability
 
 Android now has a Reliability Center covering assistant activity, battery-optimization state, Android background restriction, active network, bridge pairing and bridge request history.
@@ -388,7 +407,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v6.2 — Stability + Battery + Background Reliability**
+**v6.3 — Final Release Candidate + Self-Contained Packaging + Full QA**
 
 ## Roadmap
 
@@ -422,7 +441,8 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 - v5.9 — Camera + Visual Assistant ✅
 - v6.0 — Unified Personal AI Brain ✅
 - v6.1 — Security + Permission Center ✅
-- **v6.2 — Stability + Battery + Background Reliability ✅**
+- v6.2 — Stability + Battery + Background Reliability ✅
+- **v6.3 — Final Release Candidate + Self-Contained Packaging + Full QA ✅**
 
 ## Author
 

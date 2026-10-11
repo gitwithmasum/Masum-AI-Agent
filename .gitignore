@@ -26,3 +26,8 @@ build/
 dist/
 installer-output/
 *.spec
+
+*.jks
+*.keystore
+keystore.properties
+release-signing.properties
