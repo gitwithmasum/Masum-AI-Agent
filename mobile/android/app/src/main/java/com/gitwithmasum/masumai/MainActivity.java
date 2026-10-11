@@ -26,6 +26,7 @@ public class MainActivity extends Activity {
     private static final int MIC_REQUEST = 41;
     private static final int PHONE_REQUEST = 43;
     private static final int CONTACT_REQUEST = 44;
+    private static final int NOTIFICATION_REQUEST = 45;
     private TextView status;
 
     @Override
@@ -40,7 +41,7 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("MASUM AI AGENT\nMobile Companion v5.4");
+        title.setText("MASUM AI AGENT\nMobile Companion v5.5");
         title.setTextColor(Color.rgb(103, 232, 255));
         title.setTextSize(26);
         title.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -55,7 +56,8 @@ public class MainActivity extends Activity {
             "4. Enable Notification Access for calls, notifications and direct replies\n" +
             "5. Optional: enable Accessibility Voice Control\n" +
             "6. Allow Contacts + Outgoing Calls for name-based calling\n" +
-            "7. Pair with the Windows companion for laptop voice control\n\n" +
+            "7. Allow Reminder Notifications\n" +
+            "8. Pair with the Windows companion for laptop voice control\n\n" +
             "Cirilla/Geralt never auto-answer calls. A call action only runs after your explicit voice command."
         );
         intro.setTextColor(Color.WHITE);
@@ -99,6 +101,10 @@ public class MainActivity extends Activity {
         Button contacts = button("6 — ALLOW CONTACTS + OUTGOING CALLS");
         contacts.setOnClickListener(v -> requestContactActions());
         root.addView(contacts, matchWrap());
+
+        Button reminderNotifications = button("7 — ALLOW REMINDER NOTIFICATIONS");
+        reminderNotifications.setOnClickListener(v -> requestReminderNotifications());
+        root.addView(reminderNotifications, matchWrap());
 
         TextView languageTitle = new TextView(this);
         languageTitle.setText("\nVOICE LANGUAGE");
@@ -209,7 +215,17 @@ public class MainActivity extends Activity {
             "Hey Cirilla, WhatsApp Rahim saying I will call later\n" +
             "হেই সিরিলা, রহিমকে কল করো\n" +
             "হেই সিরিলা, রহিমকে এসএমএস করো আমি আসছি\n" +
-            "হেই সিরিলা, রহিমকে হোয়াটসঅ্যাপ করো আমি পরে কল করব\n" +
+            "হেই সিরিলা, রহিমকে হোয়াটসঅ্যাপ করো আমি পরে কল করব\n\n" +
+            "PRODUCTIVITY EXAMPLES\n\n" +
+            "Hey Cirilla, set alarm for 7 AM\n" +
+            "Hey Cirilla, set a 25 minute timer\n" +
+            "Hey Cirilla, remind me in 20 minutes to submit assignment\n" +
+            "Hey Cirilla, take note buy perfume samples\n" +
+            "Hey Cirilla, read my notes\n" +
+            "হেই সিরিলা, সকাল ৭টায় অ্যালার্ম দাও\n" +
+            "হেই সিরিলা, ২৫ মিনিটের টাইমার দাও\n" +
+            "হেই সিরিলা, ২০ মিনিট পরে অ্যাসাইনমেন্ট জমা দিতে মনে করিয়ে দিও\n" +
+            "হেই সিরিলা, নোট করো কাল research paper দেখব\n" +
             "Hey Cirilla, switch to Geralt"
         );
         commands.setTextColor(Color.LTGRAY);
@@ -288,6 +304,23 @@ public class MainActivity extends Activity {
                     Manifest.permission.CALL_PHONE
                 },
                 CONTACT_REQUEST
+            );
+        } else {
+            updateStatus();
+        }
+    }
+
+    private void requestReminderNotifications() {
+        if (
+            Build.VERSION.SDK_INT >= 33 &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(
+                new String[]{
+                    Manifest.permission.POST_NOTIFICATIONS
+                },
+                NOTIFICATION_REQUEST
             );
         } else {
             updateStatus();
@@ -393,6 +426,12 @@ public class MainActivity extends Activity {
             checkSelfPermission(Manifest.permission.CALL_PHONE)
                 == PackageManager.PERMISSION_GRANTED;
 
+        boolean reminderNotificationsReady =
+            Build.VERSION.SDK_INT < 33 ||
+            checkSelfPermission(
+                Manifest.permission.POST_NOTIFICATIONS
+            ) == PackageManager.PERMISSION_GRANTED;
+
         status.setText(
             "Microphone: " + (mic ? "READY" : "PERMISSION NEEDED") +
             "\nDefault Assistant: " + (activeAssistant ? "MASUM AI ACTIVE" : "NOT SELECTED") +
@@ -401,6 +440,7 @@ public class MainActivity extends Activity {
             "\nAccessibility: " + (CirillaAccessibilityService.isRunning() ? "ENABLED" : "OPTIONAL / OFF") +
             "\nContacts: " + (contactsReady ? "READY" : "PERMISSION NEEDED") +
             "\nOutgoing Call: " + (outgoingReady ? "READY" : "DIALER FALLBACK") +
+            "\nReminder Notifications: " + (reminderNotificationsReady ? "READY" : "PERMISSION NEEDED") +
             "\nVoice Language: " + voiceLanguageMode().toUpperCase(Locale.ROOT) +
             "\nLaptop Bridge: " + (BridgeClient.isConfigured(this) ? "PAIRED" : "NOT PAIRED")
         );

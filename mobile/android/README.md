@@ -1,48 +1,49 @@
-# Masum AI Agent Mobile v5.4
+# Masum AI Agent Mobile v5.5
 
-Native Android Cirilla / Geralt companion with contact-aware outgoing calls and messaging.
+Native Android Cirilla / Geralt companion with voice productivity actions.
 
-## Contacts permission
-
-v5.4 can resolve a spoken contact name from Android Contacts. The app requests:
-
-- READ_CONTACTS — only when you enable Contacts support
-- CALL_PHONE — for direct outgoing calls after voice confirmation
-
-If CALL_PHONE is not granted, Cirilla falls back to opening the dialer.
-
-## Voice examples
+## Alarm and timer
 
 ```text
-Hey Cirilla, call Rahim
-Cirilla: Call Rahim? Say yes or no.
-You: Yes
+Hey Cirilla, set alarm for 7 AM
+Hey Cirilla, set a 25 minute timer
 
-Hey Cirilla, send SMS to Rahim saying I am coming
-Cirilla: Prepare SMS to Rahim ...? Say yes or no.
-You: Yes
-
-Hey Cirilla, WhatsApp Rahim saying I will call later
-Cirilla: Prepare WhatsApp message to Rahim ...? Say yes or no.
-You: Yes
+হেই সিরিলা, সকাল ৭টায় অ্যালার্ম দাও
+হেই সিরিলা, ২৫ মিনিটের টাইমার দাও
 ```
 
-Bangla:
+Alarm and timer commands use Android's system AlarmClock intents.
+
+## Local reminders
 
 ```text
-হেই সিরিলা, রহিমকে কল করো
-হেই সিরিলা, রহিমকে এসএমএস করো আমি আসছি
-হেই সিরিলা, রহিমকে হোয়াটসঅ্যাপ করো আমি পরে কল করব
+Hey Cirilla, remind me in 20 minutes to submit assignment
+হেই সিরিলা, ২০ মিনিট পরে অ্যাসাইনমেন্ট জমা দিতে মনে করিয়ে দিও
 ```
 
-SMS and WhatsApp are intentionally opened as a pre-filled compose screen instead of silently sending. With Accessibility Voice Control enabled, say:
+Reminders are stored locally, delivered as Android notifications, and future reminders are re-scheduled after a device reboot. Android power management may make delivery slightly inexact.
+
+Enable **Reminder Notifications** in the app on Android 13+.
+
+## Notes
 
 ```text
-Hey Cirilla, click Send
+Hey Cirilla, take note buy perfume samples
+Hey Cirilla, read my notes
+
+হেই সিরিলা, নোট করো কাল research paper দেখব
+হেই সিরিলা, নোটগুলো পড়ো
 ```
 
-to press a visible Send button.
+Notes stay in the app's private local storage.
 
-If multiple contacts match the same spoken name, Cirilla asks for a more specific contact name instead of guessing.
+## Calendar
 
-All v5.1 call receiving, v5.2 notification/smart reply, and v5.3 Bangla + laptop bridge features remain available.
+```text
+Hey Cirilla, calendar event BUBT assignment review
+হেই সিরিলা, ক্যালেন্ডারে BUBT assignment review যোগ করো
+```
+
+Calendar commands open a pre-filled event in the user's calendar app for review/save.
+
+All earlier call, notification, messaging, Bangla voice and mobile↔laptop bridge features remain available.

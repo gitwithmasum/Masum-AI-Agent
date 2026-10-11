@@ -1,5 +1,28 @@
 # Masum AI Agent
 
+## v5.5 — Alarm + Timer + Reminder + Calendar + Notes
+
+Android Cirilla/Geralt now includes a local productivity layer:
+
+```text
+Hey Cirilla, set alarm for 7 AM
+Hey Cirilla, set a 25 minute timer
+Hey Cirilla, remind me in 20 minutes to submit assignment
+Hey Cirilla, take note buy perfume samples
+Hey Cirilla, read my notes
+
+হেই সিরিলা, সকাল ৭টায় অ্যালার্ম দাও
+হেই সিরিলা, ২৫ মিনিটের টাইমার দাও
+হেই সিরিলা, ২০ মিনিট পরে অ্যাসাইনমেন্ট জমা দিতে মনে করিয়ে দিও
+হেই সিরিলা, নোট করো কাল research paper দেখব
+```
+
+Local reminders survive app restarts and are re-scheduled after device reboot. Android's power management can make them slightly inexact. Calendar events open pre-filled for review/save.
+
+Artifact: `Masum-AI-Agent-Android-APK-v5.5`
+
+---
+
 ## v5.4 — Contacts + Messaging Assistant
 
 Android Cirilla/Geralt can now resolve saved contact names for confirmed outgoing calls and pre-filled SMS / WhatsApp messages.
@@ -224,7 +247,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v5.4 — Contacts + Messaging Assistant**
+**v5.5 — Alarm + Timer + Reminder + Calendar + Notes**
 
 ## Roadmap
 
@@ -250,7 +273,8 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 - v5.1 — Universal Call Voice Control ✅
 - v5.2 — Voice Notifications + Smart Reply ✅
 - v5.3 — Bangla Voice + Mobile ↔ Laptop Bridge ✅
-- **v5.4 — Contacts + Messaging Assistant ✅**
+- v5.4 — Contacts + Messaging Assistant ✅
+- **v5.5 — Alarm + Timer + Reminder + Calendar + Notes ✅**
 
 ## Author
 

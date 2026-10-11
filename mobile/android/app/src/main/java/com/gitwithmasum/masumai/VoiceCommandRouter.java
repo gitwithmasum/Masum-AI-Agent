@@ -342,6 +342,285 @@ public class VoiceCommandRouter {
             return;
         }
 
+        Matcher alarmEnglish = Pattern
+            .compile(
+                "^(?:set\\s+)?(?:an?\\s+)?alarm(?:\\s+for|\\s+at)?\\s+" +
+                "(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?(?:\\s+(.+))?$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(normalizeDigits(raw.trim()));
+
+        Matcher alarmBangla = Pattern
+            .compile(
+                "^(সকাল|দুপুর|বিকাল|রাত)?\\s*" +
+                "([0-9]{1,2})(?::([0-9]{2}))?\\s*" +
+                "(?:টায়|টায়)\\s*" +
+                "(?:অ্যালার্ম|এলার্ম)\\s*(?:দাও|সেট করো)?$"
+            )
+            .matcher(normalizeDigits(raw.trim()));
+
+        if (alarmEnglish.find()) {
+            int hour = Integer.parseInt(
+                alarmEnglish.group(1)
+            );
+            int minute = alarmEnglish.group(2) == null
+                ? 0
+                : Integer.parseInt(
+                    alarmEnglish.group(2)
+                );
+            hour = to24Hour(
+                hour,
+                alarmEnglish.group(3),
+                null
+            );
+
+            ProductivityActionManager.Result result =
+                ProductivityActionManager.setAlarm(
+                    context,
+                    hour,
+                    minute,
+                    alarmEnglish.group(4)
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (alarmBangla.find()) {
+            int hour = Integer.parseInt(
+                alarmBangla.group(2)
+            );
+            int minute = alarmBangla.group(3) == null
+                ? 0
+                : Integer.parseInt(
+                    alarmBangla.group(3)
+                );
+            hour = to24Hour(
+                hour,
+                null,
+                alarmBangla.group(1)
+            );
+
+            ProductivityActionManager.Result result =
+                ProductivityActionManager.setAlarm(
+                    context,
+                    hour,
+                    minute,
+                    "Cirilla alarm"
+                );
+            speak(result.message);
+            return;
+        }
+
+        Matcher timerEnglish = Pattern
+            .compile(
+                "^(?:set\\s+)?(?:a\\s+)?" +
+                "(\\d+)\\s*(second|seconds|minute|minutes|hour|hours)" +
+                "(?:\\s+timer)?$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(normalizeDigits(raw.trim()));
+
+        Matcher timerBangla = Pattern
+            .compile(
+                "^([0-9]+)\\s*" +
+                "(সেকেন্ড|মিনিট|ঘণ্টা|ঘন্টা)(?:ের)?\\s*" +
+                "(?:টাইমার)\\s*(?:দাও|সেট করো|চালু করো)?$"
+            )
+            .matcher(normalizeDigits(raw.trim()));
+
+        if (timerEnglish.find()) {
+            int value = Integer.parseInt(
+                timerEnglish.group(1)
+            );
+            int seconds = durationToSeconds(
+                value,
+                timerEnglish.group(2)
+            );
+
+            ProductivityActionManager.Result result =
+                ProductivityActionManager.setTimer(
+                    context,
+                    seconds,
+                    "Cirilla timer"
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (timerBangla.find()) {
+            int value = Integer.parseInt(
+                timerBangla.group(1)
+            );
+            int seconds = durationToSeconds(
+                value,
+                timerBangla.group(2)
+            );
+
+            ProductivityActionManager.Result result =
+                ProductivityActionManager.setTimer(
+                    context,
+                    seconds,
+                    "Cirilla timer"
+                );
+            speak(result.message);
+            return;
+        }
+
+        Matcher reminderEnglish = Pattern
+            .compile(
+                "^remind\\s+me\\s+in\\s+" +
+                "(\\d+)\\s*" +
+                "(minute|minutes|hour|hours)\\s+" +
+                "(?:to\\s+)?(.+)$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(normalizeDigits(raw.trim()));
+
+        Matcher reminderBangla = Pattern
+            .compile(
+                "^([0-9]+)\\s*" +
+                "(মিনিট|ঘণ্টা|ঘন্টা)\\s+পরে\\s+" +
+                "(.+?)\\s+" +
+                "(?:মনে\\s+করিয়ে\\s+দিও|মনে\\s+করিয়ে\\s+দিও|রিমাইন্ড\\s+করো)$"
+            )
+            .matcher(normalizeDigits(raw.trim()));
+
+        if (reminderEnglish.find()) {
+            int value = Integer.parseInt(
+                reminderEnglish.group(1)
+            );
+            long delayMillis =
+                durationToSeconds(
+                    value,
+                    reminderEnglish.group(2)
+                ) * 1000L;
+
+            ProductivityActionManager.Result result =
+                ProductivityActionManager.createReminder(
+                    context,
+                    System.currentTimeMillis() + delayMillis,
+                    reminderEnglish.group(3)
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (reminderBangla.find()) {
+            int value = Integer.parseInt(
+                reminderBangla.group(1)
+            );
+            long delayMillis =
+                durationToSeconds(
+                    value,
+                    reminderBangla.group(2)
+                ) * 1000L;
+
+            ProductivityActionManager.Result result =
+                ProductivityActionManager.createReminder(
+                    context,
+                    System.currentTimeMillis() + delayMillis,
+                    reminderBangla.group(3)
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "list reminders",
+            "read reminders",
+            "upcoming reminders",
+            "রিমাইন্ডারগুলো বলো",
+            "রিমাইন্ডারগুলো পড়ো",
+            "রিমাইন্ডারগুলো পড়ো"
+        )) {
+            ProductivityActionManager.Result result =
+                ProductivityActionManager.listReminders(
+                    context,
+                    5
+                );
+            speak(result.message);
+            return;
+        }
+
+        Matcher noteEnglish = Pattern
+            .compile(
+                "^(?:take\\s+(?:a\\s+)?note|note)\\s+(.+)$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
+        Matcher noteBangla = Pattern
+            .compile(
+                "^(?:নোট\\s+করো|একটা\\s+নোট\\s+রাখো|নোট\\s+রাখো)\\s+(.+)$"
+            )
+            .matcher(raw.trim());
+
+        if (noteEnglish.find() || noteBangla.find()) {
+            String noteText = noteEnglish.matches()
+                ? noteEnglish.group(1)
+                : noteBangla.group(1);
+
+            ProductivityActionManager.Result result =
+                ProductivityActionManager.addNote(
+                    context,
+                    noteText
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "read my notes",
+            "read notes",
+            "list notes",
+            "নোটগুলো পড়ো",
+            "নোটগুলো পড়ো",
+            "আমার নোটগুলো পড়ো",
+            "আমার নোটগুলো পড়ো"
+        )) {
+            ProductivityActionManager.Result result =
+                ProductivityActionManager.readNotes(
+                    context,
+                    5
+                );
+            speak(result.message);
+            return;
+        }
+
+        Matcher calendarEnglish = Pattern
+            .compile(
+                "^(?:add\\s+)?calendar\\s+event\\s+(.+)$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(raw.trim());
+
+        Matcher calendarBangla = Pattern
+            .compile(
+                "^ক্যালেন্ডারে\\s+(.+?)\\s+(?:যোগ\\s+করো|ইভেন্ট\\s+দাও)$"
+            )
+            .matcher(raw.trim());
+
+        if (
+            calendarEnglish.find() ||
+            calendarBangla.find()
+        ) {
+            String title = calendarEnglish.matches()
+                ? calendarEnglish.group(1)
+                : calendarBangla.group(1);
+
+            ProductivityActionManager.Result result =
+                ProductivityActionManager.openCalendarEvent(
+                    context,
+                    title,
+                    System.currentTimeMillis() +
+                        60L * 60L * 1000L
+                );
+            speak(result.message);
+            return;
+        }
+
         Matcher callContactEnglish = Pattern
             .compile(
                 "^(?:call|phone)\\s+(.+)$",
@@ -812,6 +1091,97 @@ public class VoiceCommandRouter {
             ("geralt".equals(persona) ? "Geralt here. " : "Cirilla here. ") +
             "That mobile action is not on my safe voice list yet."
         );
+    }
+
+    private String normalizeDigits(String value) {
+        if (value == null) return "";
+
+        return value
+            .replace('০', '0')
+            .replace('১', '1')
+            .replace('২', '2')
+            .replace('৩', '3')
+            .replace('৪', '4')
+            .replace('৫', '5')
+            .replace('৬', '6')
+            .replace('৭', '7')
+            .replace('৮', '8')
+            .replace('৯', '9');
+    }
+
+    private int durationToSeconds(
+        int value,
+        String unit
+    ) {
+        String normalized =
+            unit == null
+                ? ""
+                : unit.toLowerCase(Locale.ROOT);
+
+        if (
+            normalized.startsWith("hour") ||
+            normalized.equals("ঘণ্টা") ||
+            normalized.equals("ঘন্টা")
+        ) {
+            return value * 3600;
+        }
+
+        if (
+            normalized.startsWith("minute") ||
+            normalized.equals("মিনিট")
+        ) {
+            return value * 60;
+        }
+
+        return value;
+    }
+
+    private int to24Hour(
+        int hour,
+        String amPm,
+        String banglaDaypart
+    ) {
+        int normalized = hour;
+
+        if (amPm != null) {
+            String marker =
+                amPm.toLowerCase(Locale.ROOT);
+
+            if (
+                marker.equals("pm") &&
+                normalized < 12
+            ) {
+                normalized += 12;
+            } else if (
+                marker.equals("am") &&
+                normalized == 12
+            ) {
+                normalized = 0;
+            }
+        } else if (banglaDaypart != null) {
+            if (
+                (
+                    banglaDaypart.equals("দুপুর") ||
+                    banglaDaypart.equals("বিকাল") ||
+                    banglaDaypart.equals("রাত")
+                ) &&
+                normalized < 12
+            ) {
+                normalized += 12;
+            }
+
+            if (
+                banglaDaypart.equals("রাত") &&
+                normalized == 12
+            ) {
+                normalized = 0;
+            }
+        }
+
+        if (normalized < 0) normalized = 0;
+        if (normalized > 23) normalized %= 24;
+
+        return normalized;
     }
 
     private boolean isAnswerCall(String cmd) {
