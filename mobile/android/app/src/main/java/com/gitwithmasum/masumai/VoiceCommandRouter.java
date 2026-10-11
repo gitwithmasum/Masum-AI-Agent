@@ -910,7 +910,7 @@ public class VoiceCommandRouter {
 
         Matcher navigateBangla = Pattern
             .compile(
-                "^(.+?)(?:-এ|তে|এ)\\s+(?:নেভিগেট|দিকনির্দেশ)\\s+(?:করো|দাও)$"
+                "^(.+?)(?:-?এ|-?তে)\\s+(?:নেভিগেট|দিকনির্দেশ)\\s+(?:করো|দাও)$"
             )
             .matcher(raw.trim());
 
