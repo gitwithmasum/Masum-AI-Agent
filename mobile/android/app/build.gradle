@@ -1,3 +1,7 @@
+plugins {
+    id 'com.android.application'
+}
+
 def releaseKeystorePath = System.getenv('ANDROID_KEYSTORE_PATH')
 def releaseStorePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD')
 def releaseKeyAlias = System.getenv('ANDROID_KEY_ALIAS')
@@ -11,10 +15,6 @@ def hasReleaseSigning =
     !releaseKeyAlias.isBlank() &&
     releaseKeyPassword != null &&
     !releaseKeyPassword.isBlank()
-
-plugins {
-    id 'com.android.application'
-}
 
 android {
     namespace 'com.gitwithmasum.masumai'
