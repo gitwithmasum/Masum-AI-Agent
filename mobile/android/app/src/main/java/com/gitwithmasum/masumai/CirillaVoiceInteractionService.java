@@ -22,10 +22,13 @@ public class CirillaVoiceInteractionService extends VoiceInteractionService {
     private boolean listening = false;
     private String persona = "cirilla";
     private VoiceCommandRouter router;
+    private int consecutiveErrors = 0;
+    private static volatile boolean runtimeReady = false;
 
     @Override
     public void onReady() {
         super.onReady();
+        runtimeReady = true;
         router = new VoiceCommandRouter(this);
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startRecognizer();
@@ -34,15 +37,69 @@ public class CirillaVoiceInteractionService extends VoiceInteractionService {
 
     @Override
     public void onShutdown() {
+        runtimeReady = false;
         stopRecognizer();
         super.onShutdown();
     }
 
     @Override
     public void onDestroy() {
+        runtimeReady = false;
         stopRecognizer();
         if (router != null) router.shutdown();
         super.onDestroy();
+    }
+
+    public static boolean isRuntimeReady() {
+        return runtimeReady;
+    }
+
+    private long retryDelay(int error) {
+        if (
+            error == SpeechRecognizer.ERROR_NO_MATCH ||
+            error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+        ) {
+            return 650L;
+        }
+
+        if (
+            error ==
+            SpeechRecognizer.ERROR_RECOGNIZER_BUSY
+        ) {
+            return 1600L;
+        }
+
+        int step = Math.min(
+            consecutiveErrors,
+            4
+        );
+
+        return Math.min(
+            8000L,
+            700L * (1L << step)
+        );
+    }
+
+    private void rebuildRecognizer(
+        long delayMs
+    ) {
+        handler.postDelayed(() -> {
+            listening = false;
+
+            if (recognizer != null) {
+                try {
+                    recognizer.cancel();
+                } catch (Exception ignored) {}
+
+                try {
+                    recognizer.destroy();
+                } catch (Exception ignored) {}
+
+                recognizer = null;
+            }
+
+            startRecognizer();
+        }, delayMs);
     }
 
     private void startRecognizer() {
@@ -185,12 +242,23 @@ public class CirillaVoiceInteractionService extends VoiceInteractionService {
         @Override
         public void onError(int error) {
             listening = false;
-            listenAgain(error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY ? 1400 : 500);
+            consecutiveErrors++;
+
+            long delay =
+                retryDelay(error);
+
+            if (consecutiveErrors >= 5) {
+                consecutiveErrors = 0;
+                rebuildRecognizer(delay);
+            } else {
+                listenAgain(delay);
+            }
         }
 
         @Override
         public void onResults(Bundle results) {
             listening = false;
+            consecutiveErrors = 0;
             ArrayList<String> list = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
             if (list != null && !list.isEmpty()) {
                 handleText(list.get(0));

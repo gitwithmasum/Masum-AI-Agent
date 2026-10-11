@@ -34,7 +34,7 @@ from PIL import Image, ImageDraw
 load_dotenv(override=True)
 
 APP_NAME = "Masum AI Agent"
-VERSION = "6.1.0"
+VERSION = "6.2.0"
 LOCAL_APP_DATA = Path(
     os.getenv("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))
 )
@@ -100,6 +100,11 @@ BRIDGE_NONCE_LOCK = threading.Lock()
 BRIDGE_NONCES: dict[str, int] = {}
 BRAIN_PROCESS_LOCK = threading.Lock()
 brain_process: subprocess.Popen | None = None
+BRIDGE_STATE_LOCK = threading.Lock()
+bridge_state = "starting"
+bridge_restart_count = 0
+bridge_last_error = ""
+listener_last_error = ""
 
 wake_model: WhisperModel | None = None
 command_model: WhisperModel | None = None
@@ -875,6 +880,66 @@ def open_security_health_report(
         )
 
 
+
+def set_bridge_runtime_state(
+    state: str,
+    error: str = "",
+) -> None:
+    global bridge_state, bridge_last_error
+
+    with BRIDGE_STATE_LOCK:
+        bridge_state = state
+        bridge_last_error = str(error or "").strip()
+
+
+def reliability_health_text() -> str:
+    with BRIDGE_STATE_LOCK:
+        current_state = bridge_state
+        restarts = bridge_restart_count
+        last_error = bridge_last_error
+
+    project = discover_project_path()
+    brain_ok, _brain_detail = brain_status()
+
+    lines = [
+        f"Masum AI Agent Windows Reliability v{VERSION}",
+        f"Bridge runtime: {current_state.upper()}",
+        f"Bridge recoveries: {restarts}",
+        f"Bridge last error: {last_error or 'none'}",
+        f"Wake listener: {'ENABLED' if config.get('wake_enabled', True) else 'PAUSED'}",
+        f"Listener last error: {listener_last_error or 'none'}",
+        f"Project folder: {'FOUND' if project is not None else 'NOT FOUND'}",
+        f"Unified brain: {'ONLINE' if brain_ok else 'OFFLINE / ON-DEMAND'}",
+        "Bridge server: retry-on-failure enabled",
+        "Voice listener: exception recovery enabled",
+        "Startup: Windows sign-in shortcut supported by installer",
+    ]
+    return "\n".join(lines)
+
+
+def write_reliability_report() -> Path:
+    path = APP_DATA_DIR / "reliability-health.txt"
+    path.write_text(
+        reliability_health_text() + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def open_reliability_report(
+    _icon=None,
+    _item=None,
+) -> None:
+    path = write_reliability_report()
+
+    try:
+        os.startfile(str(path))
+    except Exception:
+        logging.exception(
+            "Could not open reliability report."
+        )
+
+
 def bridge_action(action: str) -> tuple[bool, str]:
     action = str(action or "").strip().lower()
 
@@ -892,6 +957,9 @@ def bridge_action(action: str) -> tuple[bool, str]:
 
     if action == "security_status":
         return True, security_health_text()
+
+    if action == "reliability_status":
+        return True, reliability_health_text()
 
     if action == "open_vscode":
         ok = open_vscode()
@@ -974,7 +1042,7 @@ def verify_bridge_request(
 
 
 class BridgeHandler(BaseHTTPRequestHandler):
-    server_version = "MasumBridge/6.1"
+    server_version = "MasumBridge/6.2"
 
     def _json(self, status: int, payload: dict[str, Any]) -> None:
         raw = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -1034,21 +1102,79 @@ class BridgeHandler(BaseHTTPRequestHandler):
         logging.info("Bridge: " + format, *args)
 
 
+class ResilientBridgeServer(
+    ThreadingHTTPServer
+):
+    allow_reuse_address = True
+
+
 def bridge_server_loop() -> None:
+    global bridge_restart_count
+
     if not config.get("bridge_enabled", True):
+        set_bridge_runtime_state("disabled")
         return
 
-    port = int(config.get("bridge_port") or BRIDGE_PORT)
+    port = int(
+        config.get("bridge_port") or
+        BRIDGE_PORT
+    )
     write_bridge_pairing_info()
 
-    try:
-        server = ThreadingHTTPServer(("0.0.0.0", port), BridgeHandler)
-        server.daemon_threads = True
-        logging.info("Mobile bridge listening on port %s", port)
-        server.serve_forever()
-    except OSError:
-        logging.exception("Mobile bridge could not bind to port %s", port)
+    delay = 1.0
 
+    while not STOP_EVENT.is_set():
+        server = None
+
+        try:
+            server = ResilientBridgeServer(
+                ("0.0.0.0", port),
+                BridgeHandler,
+            )
+            server.daemon_threads = True
+
+            set_bridge_runtime_state("online")
+            logging.info(
+                "Mobile bridge listening on port %s",
+                port,
+            )
+
+            server.serve_forever(
+                poll_interval=0.8
+            )
+
+            if STOP_EVENT.is_set():
+                break
+
+            raise RuntimeError(
+                "Bridge server stopped unexpectedly."
+            )
+        except Exception as error:
+            bridge_restart_count += 1
+            set_bridge_runtime_state(
+                "recovering",
+                str(error),
+            )
+            logging.exception(
+                "Mobile bridge failure on port %s; retrying.",
+                port,
+            )
+
+            if STOP_EVENT.wait(delay):
+                break
+
+            delay = min(
+                delay * 2.0,
+                30.0,
+            )
+        finally:
+            if server is not None:
+                try:
+                    server.server_close()
+                except Exception:
+                    pass
+
+    set_bridge_runtime_state("stopped")
 
 def open_pairing_info(_icon=None, _item=None) -> None:
     path = write_bridge_pairing_info()
@@ -1059,35 +1185,84 @@ def open_pairing_info(_icon=None, _item=None) -> None:
 
 
 def listener_loop() -> None:
+    global listener_last_error
+
     time.sleep(2.0)
-    logging.info("%s desktop companion started.", APP_NAME)
+    logging.info(
+        "%s desktop companion started.",
+        APP_NAME,
+    )
+
+    recovery_delay = 1.0
 
     while not STOP_EVENT.is_set():
-        if not config.get("wake_enabled", True):
-            STOP_EVENT.wait(0.5)
-            continue
+        try:
+            if not config.get(
+                "wake_enabled",
+                True,
+            ):
+                STOP_EVENT.wait(0.5)
+                recovery_delay = 1.0
+                continue
 
-        text = listen(WAKE_SECONDS, "wake")
-        if not text:
-            continue
+            text = listen(
+                WAKE_SECONDS,
+                "wake",
+            )
+            if not text:
+                recovery_delay = 1.0
+                continue
 
-        detected, inline_command = extract_wake_command(text)
-        if not detected:
-            continue
+            detected, inline_command =
+                extract_wake_command(text)
 
-        logging.info("Wake detected: %s", text)
+            if not detected:
+                recovery_delay = 1.0
+                continue
 
-        if inline_command:
-            handle_command(inline_command)
-            continue
+            logging.info(
+                "Wake detected: %s",
+                text,
+            )
 
-        speak("Yes?")
-        command = listen(COMMAND_SECONDS, "command")
-        if command:
-            handle_command(command)
-        else:
-            speak("I did not hear a command.")
+            if inline_command:
+                handle_command(
+                    inline_command
+                )
+                recovery_delay = 1.0
+                continue
 
+            speak("Yes?")
+
+            command = listen(
+                COMMAND_SECONDS,
+                "command",
+            )
+
+            if command:
+                handle_command(command)
+            else:
+                speak(
+                    "I did not hear a command."
+                )
+
+            listener_last_error = ""
+            recovery_delay = 1.0
+        except Exception as error:
+            listener_last_error = str(error)
+            logging.exception(
+                "Voice listener recovered from an unexpected error."
+            )
+
+            if STOP_EVENT.wait(
+                recovery_delay
+            ):
+                break
+
+            recovery_delay = min(
+                recovery_delay * 2.0,
+                20.0,
+            )
 
 def make_tray_image() -> Image.Image:
     image = Image.new("RGB", (64, 64), (4, 10, 20))
@@ -1170,6 +1345,10 @@ def build_menu() -> pystray.Menu:
         pystray.MenuItem(
             "Open Security Health Report",
             open_security_health_report,
+        ),
+        pystray.MenuItem(
+            "Open Reliability Report",
+            open_reliability_report,
         ),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Exit", exit_app),

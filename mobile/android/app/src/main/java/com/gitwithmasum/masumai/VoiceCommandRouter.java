@@ -203,6 +203,35 @@ public class VoiceCommandRouter {
 
         if (matches(
             cmd,
+            "reliability status",
+            "background status",
+            "stability status",
+            "রিলায়েবিলিটি স্ট্যাটাস",
+            "রিলায়েবিলিটি স্ট্যাটাস",
+            "ব্যাকগ্রাউন্ড স্ট্যাটাস"
+        )) {
+            speak(
+                ReliabilityHealthManager
+                    .spokenSummary(context)
+            );
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "reconnect laptop",
+            "retry laptop bridge",
+            "ল্যাপটপ আবার কানেক্ট করো",
+            "ল্যাপটপ ব্রিজ আবার চেষ্টা করো"
+        )) {
+            sendLaptopAction(
+                "reliability_status"
+            );
+            return;
+        }
+
+        if (matches(
+            cmd,
             "security status",
             "permission status",
             "local security status",

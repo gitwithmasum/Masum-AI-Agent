@@ -1,5 +1,20 @@
 # Masum AI Agent
 
+## v6.2 — Stability + Battery + Background Reliability
+
+Android now has a Reliability Center covering assistant activity, battery-optimization state, Android background restriction, active network, bridge pairing and bridge request history.
+
+Transient bridge connection failures retry with fresh HMAC nonces. The Android speech recognizer now uses bounded restart backoff and periodically rebuilds the recognizer after repeated errors instead of retrying in a tight loop.
+
+Windows adds a recovering bridge server, listener exception recovery and a Reliability Report in the tray menu.
+
+Important: Android/OEM battery policy is respected; the app does not silently exempt itself or bypass background restrictions. If the laptop LAN IP changes, the saved Android Bridge URL may still need to be updated.
+
+Android artifact: `Masum-AI-Agent-Android-APK-v6.2`  
+Windows artifact: `Masum-AI-Agent-Windows-Setup-v6.2`
+
+---
+
 ## v6.1 — Security + Permission Center
 
 Android now has a consolidated Security + Permission Center with local readiness checks for microphone, assistant role, SIM call control, notification access, Accessibility, contacts, outgoing calls, reminders, camera, system-settings access, DND access and unified laptop pairing.
@@ -373,7 +388,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v6.1 — Security + Permission Center**
+**v6.2 — Stability + Battery + Background Reliability**
 
 ## Roadmap
 
@@ -406,7 +421,8 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 - v5.8 — Smart App Automation ✅
 - v5.9 — Camera + Visual Assistant ✅
 - v6.0 — Unified Personal AI Brain ✅
-- **v6.1 — Security + Permission Center ✅**
+- v6.1 — Security + Permission Center ✅
+- **v6.2 — Stability + Battery + Background Reliability ✅**
 
 ## Author
 

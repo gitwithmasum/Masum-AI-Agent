@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("MASUM AI AGENT\nMobile Companion v6.1");
+        title.setText("MASUM AI AGENT\nMobile Companion v6.2");
         title.setTextColor(Color.rgb(103, 232, 255));
         title.setTextSize(26);
         title.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -131,6 +131,22 @@ public class MainActivity extends Activity {
             )
         );
         root.addView(securityCenter, matchWrap());
+
+        Button reliabilityCenter = button(
+            "OPEN RELIABILITY CENTER"
+        );
+        reliabilityCenter.setOnClickListener(v ->
+            startActivity(
+                new Intent(
+                    this,
+                    ReliabilityCenterActivity.class
+                )
+            )
+        );
+        root.addView(
+            reliabilityCenter,
+            matchWrap()
+        );
 
         TextView languageTitle = new TextView(this);
         languageTitle.setText("\nVOICE LANGUAGE");

@@ -54,6 +54,10 @@
         android:usesCleartextTraffic="true">
 
         <activity
+            android:name=".ReliabilityCenterActivity"
+            android:exported="false" />
+
+        <activity
             android:name=".SecurityCenterActivity"
             android:exported="false" />
 
