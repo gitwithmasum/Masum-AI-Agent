@@ -1,5 +1,32 @@
 # Masum AI Agent
 
+## v5.6 — Full Phone Controls
+
+Android Cirilla/Geralt now adds safe voice control for flashlight, battery, brightness, Do Not Disturb, auto-rotate, media, screenshots and hotspot settings.
+
+```text
+Hey Cirilla, flashlight on
+Hey Cirilla, battery status
+Hey Cirilla, brightness 60 percent
+Hey Cirilla, do not disturb on
+Hey Cirilla, auto rotate off
+Hey Cirilla, play music
+Hey Cirilla, next song
+Hey Cirilla, take screenshot
+Hey Cirilla, hotspot settings
+
+হেই সিরিলা, টর্চ চালু করো
+হেই সিরিলা, ব্যাটারি কত
+হেই সিরিলা, ব্রাইটনেস ৬০ পারসেন্ট করো
+হেই সিরিলা, স্ক্রিনশট নাও
+```
+
+Android special-access prompts are respected: brightness/rotation use Modify System Settings, DND uses Notification Policy Access, and screenshot uses the already optional Accessibility service.
+
+Artifact: `Masum-AI-Agent-Android-APK-v5.6`
+
+---
+
 ## v5.5 — Alarm + Timer + Reminder + Calendar + Notes
 
 Android Cirilla/Geralt now includes a local productivity layer:
@@ -247,7 +274,7 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 
 ## Current version
 
-**v5.5 — Alarm + Timer + Reminder + Calendar + Notes**
+**v5.6 — Full Phone Controls**
 
 ## Roadmap
 
@@ -274,7 +301,8 @@ Local-first personal AI system with Ollama, multi-agent routing, automation, Gma
 - v5.2 — Voice Notifications + Smart Reply ✅
 - v5.3 — Bangla Voice + Mobile ↔ Laptop Bridge ✅
 - v5.4 — Contacts + Messaging Assistant ✅
-- **v5.5 — Alarm + Timer + Reminder + Calendar + Notes ✅**
+- v5.5 — Alarm + Timer + Reminder + Calendar + Notes ✅
+- **v5.6 — Full Phone Controls ✅**
 
 ## Author
 

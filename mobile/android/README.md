@@ -1,49 +1,53 @@
-# Masum AI Agent Mobile v5.5
+# Masum AI Agent Mobile v5.6
 
-Native Android Cirilla / Geralt companion with voice productivity actions.
+Native Android Cirilla / Geralt companion with expanded safe phone controls.
 
-## Alarm and timer
-
-```text
-Hey Cirilla, set alarm for 7 AM
-Hey Cirilla, set a 25 minute timer
-
-হেই সিরিলা, সকাল ৭টায় অ্যালার্ম দাও
-হেই সিরিলা, ২৫ মিনিটের টাইমার দাও
-```
-
-Alarm and timer commands use Android's system AlarmClock intents.
-
-## Local reminders
+## System voice controls
 
 ```text
-Hey Cirilla, remind me in 20 minutes to submit assignment
-হেই সিরিলা, ২০ মিনিট পরে অ্যাসাইনমেন্ট জমা দিতে মনে করিয়ে দিও
+Hey Cirilla, flashlight on
+Hey Cirilla, flashlight off
+Hey Cirilla, battery status
+
+Hey Cirilla, brightness 60 percent
+Hey Cirilla, brightness up
+Hey Cirilla, brightness down
+
+Hey Cirilla, do not disturb on
+Hey Cirilla, do not disturb off
+
+Hey Cirilla, auto rotate on
+Hey Cirilla, auto rotate off
+
+Hey Cirilla, play music
+Hey Cirilla, pause music
+Hey Cirilla, next song
+Hey Cirilla, previous song
+
+Hey Cirilla, take screenshot
+Hey Cirilla, hotspot settings
 ```
 
-Reminders are stored locally, delivered as Android notifications, and future reminders are re-scheduled after a device reboot. Android power management may make delivery slightly inexact.
-
-Enable **Reminder Notifications** in the app on Android 13+.
-
-## Notes
+Bangla aliases are included, for example:
 
 ```text
-Hey Cirilla, take note buy perfume samples
-Hey Cirilla, read my notes
-
-হেই সিরিলা, নোট করো কাল research paper দেখব
-হেই সিরিলা, নোটগুলো পড়ো
+হেই সিরিলা, টর্চ চালু করো
+হেই সিরিলা, ব্যাটারি কত
+হেই সিরিলা, ব্রাইটনেস ৬০ পারসেন্ট করো
+হেই সিরিলা, ডিএনডি চালু করো
+হেই সিরিলা, অটো রোটেট বন্ধ করো
+হেই সিরিলা, পরের গান চালাও
+হেই সিরিলা, স্ক্রিনশট নাও
+হেই সিরিলা, হটস্পট সেটিংস খোলো
 ```
 
-Notes stay in the app's private local storage.
+## Android permission boundaries
 
-## Calendar
+- Flashlight uses Android CameraManager.
+- Brightness and rotation require Android's **Modify system settings** approval once.
+- DND requires Android's **Do Not Disturb access** approval once.
+- Screenshot uses Accessibility global screenshot and therefore needs Accessibility Voice Control enabled.
+- Hotspot is intentionally opened as settings instead of silently toggled because modern Android restricts direct hotspot control for ordinary third-party apps.
+- Media control sends standard Android media key events.
 
-```text
-Hey Cirilla, calendar event BUBT assignment review
-হেই সিরিলা, ক্যালেন্ডারে BUBT assignment review যোগ করো
-```
-
-Calendar commands open a pre-filled event in the user's calendar app for review/save.
-
-All earlier call, notification, messaging, Bangla voice and mobile↔laptop bridge features remain available.
+All earlier calls, messaging, notifications, Bangla voice, laptop bridge, alarms, reminders, calendar and notes remain available.

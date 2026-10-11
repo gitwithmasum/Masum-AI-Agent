@@ -41,7 +41,7 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("MASUM AI AGENT\nMobile Companion v5.5");
+        title.setText("MASUM AI AGENT\nMobile Companion v5.6");
         title.setTextColor(Color.rgb(103, 232, 255));
         title.setTextSize(26);
         title.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -57,7 +57,8 @@ public class MainActivity extends Activity {
             "5. Optional: enable Accessibility Voice Control\n" +
             "6. Allow Contacts + Outgoing Calls for name-based calling\n" +
             "7. Allow Reminder Notifications\n" +
-            "8. Pair with the Windows companion for laptop voice control\n\n" +
+            "8. Allow system settings / DND on first use when Android asks\n" +
+            "9. Pair with the Windows companion for laptop voice control\n\n" +
             "Cirilla/Geralt never auto-answer calls. A call action only runs after your explicit voice command."
         );
         intro.setTextColor(Color.WHITE);
@@ -225,7 +226,21 @@ public class MainActivity extends Activity {
             "হেই সিরিলা, সকাল ৭টায় অ্যালার্ম দাও\n" +
             "হেই সিরিলা, ২৫ মিনিটের টাইমার দাও\n" +
             "হেই সিরিলা, ২০ মিনিট পরে অ্যাসাইনমেন্ট জমা দিতে মনে করিয়ে দিও\n" +
-            "হেই সিরিলা, নোট করো কাল research paper দেখব\n" +
+            "হেই সিরিলা, নোট করো কাল research paper দেখব\n\n" +
+            "PHONE CONTROL EXAMPLES\n\n" +
+            "Hey Cirilla, flashlight on\n" +
+            "Hey Cirilla, battery status\n" +
+            "Hey Cirilla, brightness 60 percent\n" +
+            "Hey Cirilla, do not disturb on\n" +
+            "Hey Cirilla, auto rotate off\n" +
+            "Hey Cirilla, play music\n" +
+            "Hey Cirilla, next song\n" +
+            "Hey Cirilla, take screenshot\n" +
+            "Hey Cirilla, hotspot settings\n" +
+            "হেই সিরিলা, টর্চ চালু করো\n" +
+            "হেই সিরিলা, ব্যাটারি কত\n" +
+            "হেই সিরিলা, ব্রাইটনেস ৬০ পারসেন্ট করো\n" +
+            "হেই সিরিলা, স্ক্রিনশট নাও\n" +
             "Hey Cirilla, switch to Geralt"
         );
         commands.setTextColor(Color.LTGRAY);

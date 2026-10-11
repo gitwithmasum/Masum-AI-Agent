@@ -919,6 +919,283 @@ public class VoiceCommandRouter {
             return;
         }
 
+        if (matches(
+            cmd,
+            "flashlight on",
+            "turn on flashlight",
+            "torch on",
+            "ফ্ল্যাশলাইট চালু করো",
+            "টর্চ চালু করো"
+        )) {
+            SystemControlManager.Result result =
+                SystemControlManager.setFlashlight(
+                    context,
+                    true
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "flashlight off",
+            "turn off flashlight",
+            "torch off",
+            "ফ্ল্যাশলাইট বন্ধ করো",
+            "টর্চ বন্ধ করো"
+        )) {
+            SystemControlManager.Result result =
+                SystemControlManager.setFlashlight(
+                    context,
+                    false
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "battery status",
+            "battery level",
+            "how much battery",
+            "ব্যাটারি কত",
+            "ব্যাটারি স্ট্যাটাস"
+        )) {
+            SystemControlManager.Result result =
+                SystemControlManager.batteryStatus(
+                    context
+                );
+            speak(result.message);
+            return;
+        }
+
+        Matcher brightnessSet = Pattern
+            .compile(
+                "^(?:set\\s+)?brightness(?:\\s+to)?\\s+" +
+                "([0-9]{1,3})(?:\\s*percent)?$",
+                Pattern.CASE_INSENSITIVE
+            )
+            .matcher(normalizeDigits(raw.trim()));
+
+        Matcher brightnessBangla = Pattern
+            .compile(
+                "^ব্রাইটনেস\\s+([0-9]{1,3})(?:\\s*পারসেন্ট)?\\s*(?:করো|দাও)?$"
+            )
+            .matcher(normalizeDigits(raw.trim()));
+
+        if (
+            brightnessSet.find() ||
+            brightnessBangla.find()
+        ) {
+            int percent = Integer.parseInt(
+                brightnessSet.matches()
+                    ? brightnessSet.group(1)
+                    : brightnessBangla.group(1)
+            );
+
+            SystemControlManager.Result result =
+                SystemControlManager.setBrightness(
+                    context,
+                    percent
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "brightness up",
+            "increase brightness",
+            "ব্রাইটনেস বাড়াও"
+        )) {
+            SystemControlManager.Result result =
+                SystemControlManager.adjustBrightness(
+                    context,
+                    10
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "brightness down",
+            "decrease brightness",
+            "ব্রাইটনেস কমাও"
+        )) {
+            SystemControlManager.Result result =
+                SystemControlManager.adjustBrightness(
+                    context,
+                    -10
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "do not disturb on",
+            "dnd on",
+            "turn on do not disturb",
+            "ডু নট ডিস্টার্ব চালু করো",
+            "ডিএনডি চালু করো"
+        )) {
+            SystemControlManager.Result result =
+                SystemControlManager.doNotDisturb(
+                    context,
+                    true
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "do not disturb off",
+            "dnd off",
+            "turn off do not disturb",
+            "ডু নট ডিস্টার্ব বন্ধ করো",
+            "ডিএনডি বন্ধ করো"
+        )) {
+            SystemControlManager.Result result =
+                SystemControlManager.doNotDisturb(
+                    context,
+                    false
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "auto rotate on",
+            "screen rotation on",
+            "অটো রোটেট চালু করো",
+            "স্ক্রিন রোটেশন চালু করো"
+        )) {
+            SystemControlManager.Result result =
+                SystemControlManager.setAutoRotate(
+                    context,
+                    true
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "auto rotate off",
+            "screen rotation off",
+            "অটো রোটেট বন্ধ করো",
+            "স্ক্রিন রোটেশন বন্ধ করো"
+        )) {
+            SystemControlManager.Result result =
+                SystemControlManager.setAutoRotate(
+                    context,
+                    false
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "play music",
+            "media play",
+            "resume music",
+            "মিউজিক চালাও",
+            "গান চালাও"
+        )) {
+            SystemControlManager.Result result =
+                SystemControlManager.media(
+                    context,
+                    "play"
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "pause music",
+            "media pause",
+            "pause media",
+            "মিউজিক পজ করো",
+            "গান থামাও"
+        )) {
+            SystemControlManager.Result result =
+                SystemControlManager.media(
+                    context,
+                    "pause"
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "next song",
+            "next track",
+            "media next",
+            "পরের গান",
+            "পরের গান চালাও"
+        )) {
+            SystemControlManager.Result result =
+                SystemControlManager.media(
+                    context,
+                    "next"
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "previous song",
+            "previous track",
+            "media previous",
+            "আগের গান",
+            "আগের গান চালাও"
+        )) {
+            SystemControlManager.Result result =
+                SystemControlManager.media(
+                    context,
+                    "previous"
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "take screenshot",
+            "screenshot",
+            "স্ক্রিনশট নাও",
+            "স্ক্রিনশট দাও"
+        )) {
+            SystemControlManager.Result result =
+                SystemControlManager.screenshot(
+                    context
+                );
+            speak(result.message);
+            return;
+        }
+
+        if (matches(
+            cmd,
+            "hotspot settings",
+            "open hotspot settings",
+            "হটস্পট সেটিংস খোলো",
+            "হটস্পট খোলো"
+        )) {
+            SystemControlManager.Result result =
+                SystemControlManager.openHotspotSettings(
+                    context
+                );
+            speak(result.message);
+            return;
+        }
+
         if (matches(cmd, "volume up", "increase volume", "ভলিউম বাড়াও", "সাউন্ড বাড়াও")) {
             audio.adjustStreamVolume(
                 AudioManager.STREAM_MUSIC,
