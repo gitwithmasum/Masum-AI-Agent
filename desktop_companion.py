@@ -53,9 +53,9 @@ logging.basicConfig(
 )
 
 SAMPLE_RATE = int(os.getenv("DESKTOP_SAMPLE_RATE", "16000"))
-WAKE_SECONDS = float(os.getenv("DESKTOP_WAKE_SECONDS", "3.5"))
+WAKE_SECONDS = float(os.getenv("DESKTOP_WAKE_SECONDS", "5"))
 COMMAND_SECONDS = float(os.getenv("DESKTOP_COMMAND_SECONDS", "7"))
-WAKE_MODEL_NAME = os.getenv("DESKTOP_WAKE_MODEL", "tiny").strip() or "tiny"
+WAKE_MODEL_NAME = os.getenv("DESKTOP_WAKE_MODEL", "small").strip() or "small"
 COMMAND_MODEL_NAME = (
     os.getenv("DESKTOP_COMMAND_MODEL", "small").strip() or "small"
 )
@@ -287,15 +287,20 @@ def record_wav(seconds: float) -> Path:
 def transcribe(path: Path, kind: str) -> str:
     model = get_model(kind)
     is_wake = kind == "wake"
-    # Short wake phrases can be discarded entirely by Silero VAD.
-    # Keep VAD for longer spoken commands; never infer a command from
-    # an empty/silent recording just because VAD is disabled.
+    # Small model + wake-phrase context improves recognition of the
+    # uncommon assistant names. Preserve command-language auto-detection.
+    wake_prompt = (
+        "The assistant's name is Geralt. Wake phrase: Hey Geralt."
+        if config.get("persona") == "geralt"
+        else "The assistant's name is Cirilla. Wake phrase: Hey Cirilla."
+    )
     segments, _info = model.transcribe(
         str(path),
         language="en" if is_wake else None,
-        beam_size=1 if is_wake else 4,
+        beam_size=5 if is_wake else 4,
         vad_filter=not is_wake,
         condition_on_previous_text=False,
+        initial_prompt=wake_prompt if is_wake else None,
     )
     return " ".join(
         (segment.text or "").strip()
