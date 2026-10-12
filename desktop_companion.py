@@ -286,11 +286,15 @@ def record_wav(seconds: float) -> Path:
 
 def transcribe(path: Path, kind: str) -> str:
     model = get_model(kind)
+    is_wake = kind == "wake"
+    # Short wake phrases can be discarded entirely by Silero VAD.
+    # Keep VAD for longer spoken commands; never infer a command from
+    # an empty/silent recording just because VAD is disabled.
     segments, _info = model.transcribe(
         str(path),
-        language=None,
-        beam_size=1 if kind == "wake" else 4,
-        vad_filter=True,
+        language="en" if is_wake else None,
+        beam_size=1 if is_wake else 4,
+        vad_filter=not is_wake,
         condition_on_previous_text=False,
     )
     return " ".join(
