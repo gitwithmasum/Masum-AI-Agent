@@ -1,4 +1,4 @@
-name: Build Android 1.0.1 RC2
+name: Build Android 1.0.2 RC1
 
 on:
   workflow_dispatch:
@@ -76,12 +76,12 @@ jobs:
         shell: bash
         run: |
           mkdir -p mobile-apk
-          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk             mobile-apk/Masum-AI-Agent-Mobile-v1.0.1-rc2-debug.apk
+          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk             mobile-apk/Masum-AI-Agent-Mobile-v1.0.2-rc1-debug.apk
 
           if [ "$MASUM_RELEASE_SIGNED" = "true" ]; then
-            cp mobile/android/app/build/outputs/apk/release/app-release.apk               mobile-apk/Masum-AI-Agent-Mobile-v1.0.1-rc2-release-signed.apk
+            cp mobile/android/app/build/outputs/apk/release/app-release.apk               mobile-apk/Masum-AI-Agent-Mobile-v1.0.2-rc1-release-signed.apk
           else
-            cp mobile/android/app/build/outputs/apk/release/app-release-unsigned.apk               mobile-apk/Masum-AI-Agent-Mobile-v1.0.1-rc2-release-unsigned.apk
+            cp mobile/android/app/build/outputs/apk/release/app-release-unsigned.apk               mobile-apk/Masum-AI-Agent-Mobile-v1.0.2-rc1-release-unsigned.apk
           fi
 
           sha256sum mobile-apk/*.apk > mobile-apk/SHA256SUMS.txt
@@ -89,6 +89,6 @@ jobs:
       - name: Upload Android RC
         uses: actions/upload-artifact@v4
         with:
-          name: Masum-AI-Agent-Android-v1.0.1-RC2
+          name: Masum-AI-Agent-Android-v1.0.2-RC1
           path: mobile-apk/
           if-no-files-found: error
