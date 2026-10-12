@@ -165,6 +165,25 @@ public final class BridgeClient {
         );
     }
 
+    /** Find a paired laptop even if its DHCP address has changed. */
+    public static void discover(Context context, Callback callback) {
+        new Thread(() -> {
+            if (getSecret(context).isBlank()) {
+                callback.onResult(false, "Save a pairing key or scan the laptop QR first.");
+                return;
+            }
+            String url = BridgeDiscovery.find(context, getSecret(context));
+            if (url == null) {
+                callback.onResult(false,
+                    "No authenticated laptop found. Connect both devices to the same " +
+                    "private Wi-Fi; allow UDP 8768 discovery and TCP 8767 bridge in Windows Firewall.");
+                return;
+            }
+            savePairing(context, url, getSecret(context));
+            callback.onResult(true, "Laptop discovered at " + url + ". Tap SAVE + TEST to verify.");
+        }, "MasumBridgeDiscovery").start();
+    }
+
     private static void sendRequest(
         Context context,
         String path,
@@ -187,6 +206,7 @@ public final class BridgeClient {
             String lastError =
                 "Laptop bridge is unreachable.";
 
+            boolean rediscovered = false;
             for (
                 int attempt = 1;
                 attempt <= maxAttempts;
@@ -298,6 +318,18 @@ public final class BridgeClient {
                     );
                     return;
                 } catch (Exception error) {
+                    // A stale DHCP address is common. Discover an authenticated
+                    // laptop once and retry the same signed request on its new URL.
+                    if (!rediscovered && attempt < maxAttempts &&
+                        (error instanceof ConnectException ||
+                         error instanceof NoRouteToHostException ||
+                         error instanceof SocketTimeoutException)) {
+                        rediscovered = true;
+                        String found = BridgeDiscovery.find(context, getSecret(context));
+                        if (found != null && !found.equals(getUrl(context))) {
+                            savePairing(context, found, getSecret(context));
+                        }
+                    }
                     // Preserve actionable diagnostics instead of collapsing every
                     // exception into "bridge unreachable". Do not expose the key.
                     if (error instanceof ConnectException ||
