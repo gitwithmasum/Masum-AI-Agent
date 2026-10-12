@@ -4,8 +4,8 @@ plugins {
 
 def stableReleaseBuild =
     project.findProperty('stableRelease')?.toString()?.toBoolean() ?: false
-def appVersionCode = stableReleaseBuild ? 10001 : 10003
-def appVersionName = stableReleaseBuild ? '1.0.0' : '1.0.1-rc2'
+def appVersionCode = stableReleaseBuild ? 10001 : 10004
+def appVersionName = stableReleaseBuild ? '1.0.0' : '1.0.2-rc1'
 
 def releaseKeystorePath = System.getenv('ANDROID_KEYSTORE_PATH')
 def releaseStorePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD')
@@ -64,4 +64,5 @@ android {
 dependencies {
     implementation 'com.google.mlkit:text-recognition:16.0.1'
     implementation 'com.google.mlkit:image-labeling:17.0.9'
+    implementation 'com.google.android.gms:play-services-code-scanner:16.1.0'
 }
