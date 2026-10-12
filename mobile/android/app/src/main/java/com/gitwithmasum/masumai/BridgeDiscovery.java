@@ -1,7 +1,7 @@
 package com.gitwithmasum.masumai;
 
 import android.content.Context;
-import android.net.wifi.DhcpInfo;
+import android.net.DhcpInfo;
 import android.net.wifi.WifiManager;
 import org.json.JSONObject;
 import java.net.DatagramPacket;
