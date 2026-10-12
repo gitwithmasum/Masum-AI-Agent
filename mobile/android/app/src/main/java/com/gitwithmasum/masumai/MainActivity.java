@@ -42,7 +42,7 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("MASUM AI AGENT\nMobile Companion 1.0.0 Release Gate");
+        title.setText("MASUM AI AGENT\nMobile Companion 1.0.1 RC1");
         title.setTextColor(Color.rgb(103, 232, 255));
         title.setTextSize(26);
         title.setGravity(Gravity.CENTER_HORIZONTAL);
