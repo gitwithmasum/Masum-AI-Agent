@@ -305,8 +305,10 @@ def listen(seconds: float, kind: str) -> str:
     try:
         path = record_wav(seconds)
         return transcribe(path, kind)
-    except Exception:
+    except Exception as error:
         logging.exception("Microphone/transcription failed.")
+        global listener_last_error
+        listener_last_error = str(error)[:300]
         return ""
     finally:
         if path is not None:
@@ -1324,8 +1326,9 @@ def listener_loop() -> None:
 
     time.sleep(2.0)
     logging.info(
-        "%s desktop companion started.",
+        "%s desktop companion started. Wake listening: %s",
         APP_NAME,
+        "ON" if config.get("wake_enabled", True) else "OFF",
     )
 
     recovery_delay = 1.0
@@ -1344,6 +1347,8 @@ def listener_loop() -> None:
                 WAKE_SECONDS,
                 "wake",
             )
+            if text:
+                logging.info("Wake transcription: %s", text[:160])
             if not text:
                 recovery_delay = 1.0
                 continue
