@@ -21,6 +21,8 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import java.util.Locale;
+import org.json.JSONObject;
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning;
 
 public class MainActivity extends Activity {
     private static final int MIC_REQUEST = 41;
@@ -42,7 +44,7 @@ public class MainActivity extends Activity {
         scroll.addView(root);
 
         TextView title = new TextView(this);
-        title.setText("MASUM AI AGENT\nMobile Companion 1.0.1 RC2");
+        title.setText("MASUM AI AGENT\nMobile Companion 1.0.2 RC1");
         title.setTextColor(Color.rgb(103, 232, 255));
         title.setTextSize(26);
         title.setGravity(Gravity.CENTER_HORIZONTAL);
@@ -215,6 +217,60 @@ public class MainActivity extends Activity {
         );
         bridgeKey.setText(BridgeClient.getSecret(this));
         root.addView(bridgeKey, matchWrap());
+
+        Button discoverBridge = button("FIND LAPTOP ON WI-FI");
+        root.addView(discoverBridge, matchWrap());
+        discoverBridge.setOnClickListener(v -> {
+            if (bridgeKey.getText().toString().trim().isEmpty()) {
+                android.widget.Toast.makeText(this,
+                    "Enter your pairing key or scan the laptop QR first.",
+                    android.widget.Toast.LENGTH_LONG).show();
+                return;
+            }
+            BridgeClient.savePairing(this,
+                bridgeUrl.getText().toString().trim(),
+                bridgeKey.getText().toString().trim());
+            discoverBridge.setEnabled(false);
+            BridgeClient.discover(this, (ok, message) ->
+                runOnUiThread(() -> {
+                    discoverBridge.setEnabled(true);
+                    if (ok) bridgeUrl.setText(BridgeClient.getUrl(this));
+                    android.widget.Toast.makeText(this, message,
+                        android.widget.Toast.LENGTH_LONG).show();
+                }));
+        });
+
+        Button qrBridge = button("SCAN LAPTOP PAIRING QR");
+        root.addView(qrBridge, matchWrap());
+        qrBridge.setOnClickListener(v -> {
+            GmsBarcodeScanning.getClient(this).startScan()
+                .addOnSuccessListener(barcode -> {
+                    try {
+                        JSONObject data = new JSONObject(barcode.getRawValue());
+                        if (!"masum-pair-v1".equals(data.optString("type")))
+                            throw new IllegalArgumentException("Not a Masum pairing QR");
+                        String url = data.optString("url").trim();
+                        String key = data.optString("key").trim();
+                        if (!url.startsWith("http://") || !url.endsWith(":8767") ||
+                            key.length() < 32)
+                            throw new IllegalArgumentException("Invalid pairing QR");
+                        bridgeUrl.setText(url);
+                        bridgeKey.setText(key);
+                        BridgeClient.savePairing(this, url, key);
+                        android.widget.Toast.makeText(this,
+                            "QR imported. Tap SAVE + TEST to connect.",
+                            android.widget.Toast.LENGTH_LONG).show();
+                    } catch (Exception error) {
+                        android.widget.Toast.makeText(this,
+                            "Invalid Masum AI pairing QR.",
+                            android.widget.Toast.LENGTH_LONG).show();
+                    }
+                })
+                .addOnFailureListener(error ->
+                    android.widget.Toast.makeText(this,
+                        "QR scanner unavailable. Use manual pairing or Find Laptop.",
+                        android.widget.Toast.LENGTH_LONG).show());
+        });
 
         Button saveBridge = button("SAVE + TEST UNIFIED AI PAIRING");
         root.addView(saveBridge, matchWrap());
