@@ -9,6 +9,11 @@ import java.io.BufferedReader;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
+import java.net.ConnectException;
+import java.net.SocketTimeoutException;
+import java.net.UnknownHostException;
+import java.net.NoRouteToHostException;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.util.UUID;
@@ -293,10 +298,32 @@ public final class BridgeClient {
                     );
                     return;
                 } catch (Exception error) {
-                    lastError =
-                        path.equals("/brain")
-                            ? "Unified AI brain is unreachable. Check laptop, Ollama, Wi-Fi and pairing."
-                            : "Laptop bridge is unreachable. Check Wi-Fi, pairing and Windows Firewall.";
+                    // Preserve actionable diagnostics instead of collapsing every
+                    // exception into "bridge unreachable". Do not expose the key.
+                    if (error instanceof ConnectException ||
+                        error instanceof NoRouteToHostException) {
+                        lastError = "Connection refused or no route to laptop. " +
+                            "Confirm the laptop bridge is running, both devices " +
+                            "use the same private Wi-Fi, and Windows Firewall " +
+                            "allows TCP 8767.";
+                    } else if (error instanceof SocketTimeoutException) {
+                        lastError = "Connection timed out. Check the laptop IP " +
+                            "address, Wi-Fi client isolation, and Private " +
+                            "network firewall access to TCP 8767.";
+                    } else if (error instanceof UnknownHostException ||
+                               error instanceof MalformedURLException) {
+                        lastError = "Invalid or unresolved bridge address. " +
+                            "Use the current laptop IPv4 URL, e.g. " +
+                            "http://192.168.0.5:8767.";
+                    } else if (error instanceof java.net.UnknownServiceException ||
+                               error instanceof java.net.ProtocolException) {
+                        lastError = "Bridge URL or protocol is incorrect. " +
+                            "Use http://<laptop IPv4>:8767 on trusted Wi-Fi.";
+                    } else {
+                        lastError = "Bridge request failed (" +
+                            error.getClass().getSimpleName() +
+                            "). Check app network permission and laptop bridge.";
+                    }
 
                     if (attempt < maxAttempts) {
                         try {
