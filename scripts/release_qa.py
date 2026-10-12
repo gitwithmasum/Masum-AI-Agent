@@ -44,9 +44,10 @@ def main() -> None:
     )
     check(
         "'1.0.0'" in gradle and
-        "'1.0.0-rc1'" in gradle and
-        "stableReleaseBuild" in gradle,
-        "Android contains stable 1.0.0 version target",
+        "'1.0.1-rc1'" in gradle and
+        "stableReleaseBuild" in gradle and
+        "10002" in gradle,
+        "Android RC 1.0.1 uses newer versionCode while stable 1.0.0 remains available",
         rows,
     )
     check(
