@@ -34,7 +34,7 @@ from PIL import Image, ImageDraw
 load_dotenv(override=True)
 
 APP_NAME = "Masum AI Agent"
-VERSION = "1.0.0"
+VERSION = "1.0.2-rc1"
 LOCAL_APP_DATA = Path(
     os.getenv("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))
 )
@@ -1330,6 +1330,71 @@ def open_pairing_info(_icon=None, _item=None) -> None:
         logging.exception("Could not open bridge pairing info.")
 
 
+
+DISCOVERY_PORT = 8768
+
+
+def discovery_server_loop() -> None:
+    """Reply to paired local clients, never broadcasting the pairing key."""
+    while not STOP_EVENT.is_set():
+        sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        try:
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            sock.bind(("0.0.0.0", DISCOVERY_PORT))
+            sock.settimeout(1.0)
+            while not STOP_EVENT.is_set():
+                try:
+                    raw, address = sock.recvfrom(1024)
+                except socket.timeout:
+                    continue
+                try:
+                    probe = json.loads(raw.decode("utf-8"))
+                    nonce = str(probe.get("nonce", ""))
+                    if probe.get("type") != "masum-discover-v1" or not re.fullmatch(r"[0-9a-f]{32}", nonce):
+                        continue
+                    port = int(config.get("bridge_port") or BRIDGE_PORT)
+                    interface = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                    try:
+                        interface.connect((address[0], address[1]))
+                        url = f"http://{interface.getsockname()[0]}:{port}"
+                    finally:
+                        interface.close()
+                    signature = hmac.new(
+                        str(config.get("bridge_secret", "")).encode("utf-8"),
+                        (nonce + "\n" + url).encode("utf-8"),
+                        hashlib.sha256,
+                    ).hexdigest()
+                    sock.sendto(json.dumps({
+                        "type": "masum-discover-reply-v1",
+                        "nonce": nonce,
+                        "url": url,
+                        "signature": signature,
+                    }).encode("utf-8"), address)
+                except Exception:
+                    logging.debug("Ignored invalid discovery probe", exc_info=True)
+        except OSError as error:
+            logging.warning("LAN discovery unavailable: %s", error)
+            STOP_EVENT.wait(5)
+        finally:
+            sock.close()
+
+
+def open_pairing_qr(_icon=None, _item=None) -> None:
+    """Show a private QR; it contains the shared key and must not be shared."""
+    try:
+        import qrcode
+        payload = json.dumps({
+            "type": "masum-pair-v1",
+            "url": f"http://{lan_ip_address()}:{int(config.get('bridge_port') or BRIDGE_PORT)}",
+            "key": str(config.get("bridge_secret", "")),
+        })
+        path = APP_DATA_DIR / "private-mobile-pairing-qr.png"
+        qrcode.make(payload).save(path)
+        os.startfile(str(path))
+    except Exception:
+        logging.exception("Unable to show private mobile pairing QR")
+
+
 def listener_loop() -> None:
     global listener_last_error
 
@@ -1494,6 +1559,10 @@ def build_menu() -> pystray.Menu:
             open_pairing_info,
         ),
         pystray.MenuItem(
+            "Show Private Pairing QR",
+            open_pairing_qr,
+        ),
+        pystray.MenuItem(
             "Open First Run Guide",
             open_first_run_guide,
         ),
@@ -1528,6 +1597,13 @@ def main() -> None:
         daemon=True,
     )
     bridge_thread.start()
+
+    discovery_thread = threading.Thread(
+        target=discovery_server_loop,
+        name="MasumLANDiscovery",
+        daemon=True,
+    )
+    discovery_thread.start()
 
     tray_icon = pystray.Icon(
         "MasumAIAgent",
