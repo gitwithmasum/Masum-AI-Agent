@@ -217,27 +217,44 @@ public class MainActivity extends Activity {
         root.addView(bridgeKey, matchWrap());
 
         Button saveBridge = button("SAVE + TEST UNIFIED AI PAIRING");
-        saveBridge.setOnClickListener(v -> {
-            BridgeClient.savePairing(
-                this,
-                bridgeUrl.getText().toString(),
-                bridgeKey.getText().toString()
-            );
+        root.addView(saveBridge, matchWrap());
 
+        TextView bridgeFeedback = new TextView(this);
+        bridgeFeedback.setTextColor(Color.rgb(121, 242, 178));
+        bridgeFeedback.setTextSize(15);
+        bridgeFeedback.setPadding(0, 12, 0, 20);
+        bridgeFeedback.setText("Enter your laptop URL and private pairing key.");
+        root.addView(bridgeFeedback, matchWrap());
+
+        saveBridge.setOnClickListener(v -> {
+            String url = bridgeUrl.getText().toString().trim();
+            String secret = bridgeKey.getText().toString().trim();
+            if (url.isEmpty() || secret.isEmpty()) {
+                bridgeFeedback.setTextColor(Color.rgb(255, 165, 146));
+                bridgeFeedback.setText("Both Bridge URL and Pairing Key are required.");
+                return;
+            }
+            BridgeClient.savePairing(this, url, secret);
+            bridgeFeedback.setTextColor(Color.rgb(103, 232, 255));
+            bridgeFeedback.setText("Connecting to laptop bridge... Please wait.");
+            saveBridge.setEnabled(false);
             BridgeClient.send(
                 this,
                 "status",
                 (ok, message) -> runOnUiThread(() -> {
+                    saveBridge.setEnabled(true);
                     updateStatus();
-                    status.append(
-                        "\nBridge test: " +
+                    bridgeFeedback.setTextColor(ok
+                        ? Color.rgb(121, 242, 178)
+                        : Color.rgb(255, 165, 146));
+                    bridgeFeedback.setText(
+                        "Bridge test: " +
                         (ok ? "CONNECTED — " : "FAILED — ") +
                         message
                     );
                 })
             );
         });
-        root.addView(saveBridge, matchWrap());
 
         Button settings = button("OPEN VOICE / ASSISTANT SETTINGS");
         settings.setOnClickListener(v -> {
