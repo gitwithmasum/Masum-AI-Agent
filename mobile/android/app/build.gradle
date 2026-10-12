@@ -4,8 +4,8 @@ plugins {
 
 def stableReleaseBuild =
     project.findProperty('stableRelease')?.toString()?.toBoolean() ?: false
-def appVersionCode = stableReleaseBuild ? 10001 : 10002
-def appVersionName = stableReleaseBuild ? '1.0.0' : '1.0.1-rc1'
+def appVersionCode = stableReleaseBuild ? 10001 : 10003
+def appVersionName = stableReleaseBuild ? '1.0.0' : '1.0.1-rc2'
 
 def releaseKeystorePath = System.getenv('ANDROID_KEYSTORE_PATH')
 def releaseStorePassword = System.getenv('ANDROID_KEYSTORE_PASSWORD')
