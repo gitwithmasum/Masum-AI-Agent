@@ -33,8 +33,8 @@ def main() -> None:
     android_workflow = read(".github/workflows/android-companion.yml")
 
     check(
-        f'VERSION = "{EXPECTED}"' in desktop,
-        "Windows companion version matches 1.0.0",
+        'VERSION = "1.0.2-rc1"' in desktop,
+        "Windows companion is 1.0.2 RC1",
         rows,
     )
     check(
@@ -47,12 +47,25 @@ def main() -> None:
         "'1.0.2-rc1'" in gradle and
         "stableReleaseBuild" in gradle and
         "10004" in gradle,
-        "Android RC 1.0.1 uses newer versionCode while stable 1.0.0 remains available",
+        "Android RC 1.0.2 uses newer versionCode while stable 1.0.0 remains available",
         rows,
     )
     check(
         f'#define MyAppVersion "{EXPECTED}"' in installer,
         "Windows installer version matches 1.0.0",
+        rows,
+    )
+    check(
+        "masum-discover-v1" in desktop and
+        "private-mobile-pairing-qr.png" in desktop and
+        "BridgeDiscovery.find" in read("mobile/android/app/src/main/java/com/gitwithmasum/masumai/BridgeClient.java") and
+        "SCAN LAPTOP PAIRING QR" in read("mobile/android/app/src/main/java/com/gitwithmasum/masumai/MainActivity.java"),
+        "Smart Bridge Discovery and QR pairing hooks exist",
+        rows,
+    )
+    check(
+        "ACCESS_WIFI_STATE" in read("mobile/android/app/src/main/AndroidManifest.xml"),
+        "Android can inspect Wi-Fi broadcast details",
         rows,
     )
     check(
