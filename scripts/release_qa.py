@@ -33,7 +33,7 @@ def main() -> None:
     android_workflow = read(".github/workflows/android-companion.yml")
 
     check(
-        'VERSION = "1.0.2-rc1"' in desktop,
+        'VERSION = "1.0.3-rc1"' in desktop,
         "Windows companion is 1.0.2 RC1",
         rows,
     )
@@ -51,7 +51,7 @@ def main() -> None:
         rows,
     )
     check(
-        '#define MyAppVersion "1.0.2-rc3"' in installer,
+        '#define MyAppVersion "1.0.3-rc1"' in installer,
         "Windows installer is 1.0.2 RC2",
         rows,
     )
