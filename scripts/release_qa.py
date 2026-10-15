@@ -34,7 +34,7 @@ def main() -> None:
 
     check(
         'VERSION = "1.0.3-rc1"' in desktop,
-        "Windows companion is 1.0.2 RC1",
+        "Windows companion is 1.0.3 RC1",
         rows,
     )
     check(
@@ -52,7 +52,7 @@ def main() -> None:
     )
     check(
         '#define MyAppVersion "1.0.3-rc1"' in installer,
-        "Windows installer is 1.0.2 RC2",
+        "Windows installer is 1.0.3 RC1",
         rows,
     )
     check(
@@ -66,6 +66,20 @@ def main() -> None:
     check(
         "ACCESS_WIFI_STATE" in read("mobile/android/app/src/main/AndroidManifest.xml"),
         "Android can inspect Wi-Fi broadcast details",
+        rows,
+    )
+    check(
+        "Open Voice Diagnostics" in desktop and
+        "TEST MICROPHONE" in desktop and
+        "TEST CIRILLA VOICE" in desktop and
+        "voice_state_snapshot" in desktop,
+        "Windows voice diagnostics and local tests are wired",
+        rows,
+    )
+    check(
+        "Quiet audio skipped" in desktop and
+        "wake-prompt" not in desktop,
+        "Wake-listener silence protection included",
         rows,
     )
     check(
