@@ -51,8 +51,8 @@ def main() -> None:
         rows,
     )
     check(
-        '#define MyAppVersion "1.0.2-rc1"' in installer,
-        "Windows installer is 1.0.2 RC1",
+        '#define MyAppVersion "1.0.2-rc2"' in installer,
+        "Windows installer is 1.0.2 RC2",
         rows,
     )
     check(
