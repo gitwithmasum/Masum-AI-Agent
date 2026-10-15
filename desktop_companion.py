@@ -34,7 +34,7 @@ from PIL import Image, ImageDraw
 load_dotenv(override=True)
 
 APP_NAME = "Masum AI Agent"
-VERSION = "1.0.2-rc1"
+VERSION = "1.0.3-rc1"
 LOCAL_APP_DATA = Path(
     os.getenv("LOCALAPPDATA", str(Path.home() / "AppData" / "Local"))
 )
@@ -105,6 +105,44 @@ bridge_state = "starting"
 bridge_restart_count = 0
 bridge_last_error = ""
 listener_last_error = ""
+VOICE_STATE_LOCK = threading.Lock()
+VOICE_TEST_LOCK = threading.Lock()
+VOICE_TEST_ACTIVE = threading.Event()
+voice_last_text = ""
+voice_last_detected = False
+voice_last_level = 0.0
+voice_last_time = 0.0
+voice_last_status = "Waiting for microphone"
+diagnostics_open = threading.Event()
+
+
+def update_voice_state(text: str | None = None, level: float | None = None,
+                       detected: bool | None = None, status: str | None = None) -> None:
+    global voice_last_text, voice_last_level, voice_last_detected
+    global voice_last_time, voice_last_status
+    with VOICE_STATE_LOCK:
+        if text is not None:
+            voice_last_text = text[:200]
+            voice_last_time = time.time()
+        if level is not None:
+            voice_last_level = level
+        if detected is not None:
+            voice_last_detected = detected
+        if status is not None:
+            voice_last_status = status
+
+
+def voice_state_snapshot() -> dict[str, Any]:
+    with VOICE_STATE_LOCK:
+        return {
+            "text": voice_last_text,
+            "level": voice_last_level,
+            "detected": voice_last_detected,
+            "time": voice_last_time,
+            "status": voice_last_status,
+            "error": listener_last_error,
+        }
+
 
 wake_model: WhisperModel | None = None
 command_model: WhisperModel | None = None
@@ -264,6 +302,8 @@ def record_wav(seconds: float) -> Path:
     )
     sd.wait()
 
+    level = float(np.sqrt(np.mean(np.square(audio[:, 0], dtype=np.float64))))
+    update_voice_state(level=level, status="Captured audio")
     pcm = np.clip(audio[:, 0], -1.0, 1.0)
     pcm = (pcm * 32767).astype(np.int16)
 
@@ -1409,7 +1449,7 @@ def listener_loop() -> None:
 
     while not STOP_EVENT.is_set():
         try:
-            if not config.get(
+            if VOICE_TEST_ACTIVE.is_set() or not config.get(
                 "wake_enabled",
                 True,
             ):
@@ -1423,6 +1463,8 @@ def listener_loop() -> None:
             )
             if text:
                 logging.info("Wake transcription: %s", text[:160])
+            update_voice_state(text=text, detected=False,
+                               status="Recognized speech" if text else "No recognized speech")
             if not text:
                 recovery_delay = 1.0
                 continue
@@ -1440,6 +1482,7 @@ def listener_loop() -> None:
                 "Wake detected: %s",
                 text,
             )
+            update_voice_state(detected=True, status="Wake phrase detected")
 
             if inline_command:
                 handle_command(
@@ -1479,6 +1522,107 @@ def listener_loop() -> None:
                 recovery_delay * 2.0,
                 20.0,
             )
+
+
+def open_voice_diagnostics(_icon=None, _item=None) -> None:
+    """Keep the tray responsive while a separate thread owns the Tk UI."""
+    if diagnostics_open.is_set():
+        return
+    diagnostics_open.set()
+
+    def show() -> None:
+        try:
+            import tkinter as tk
+            from tkinter import ttk
+            root = tk.Tk()
+            root.title("Masum AI Agent — Voice Diagnostics")
+            root.geometry("620x420")
+            root.configure(bg="#0b1222")
+            heading = tk.Label(root, text="CIRILLA // VOICE DIAGNOSTICS",
+                               bg="#0b1222", fg="#65e7ff",
+                               font=("Segoe UI", 16, "bold"))
+            heading.pack(pady=14)
+            status = tk.StringVar(value="Starting diagnostics...")
+            heard = tk.StringVar(value="Last transcription: none")
+            level = tk.StringVar(value="Microphone level: waiting")
+            error = tk.StringVar(value="Listener error: none")
+            for value in (status, heard, level, error):
+                tk.Label(root, textvariable=value, bg="#0b1222", fg="#d9e7ff",
+                         font=("Segoe UI", 10), wraplength=560,
+                         justify="left").pack(anchor="w", padx=24, pady=6)
+            meter = ttk.Progressbar(root, maximum=100, length=540)
+            meter.pack(pady=10)
+            result = tk.StringVar(value="Microphone test temporarily pauses wake listening.")
+            tk.Label(root, textvariable=result, bg="#0b1222", fg="#65e7ff",
+                     wraplength=560).pack(pady=12)
+            buttons = tk.Frame(root, bg="#0b1222")
+            buttons.pack()
+
+            def microphone_test() -> None:
+                if VOICE_TEST_ACTIVE.is_set():
+                    return
+                VOICE_TEST_ACTIVE.set()
+                result.set("Waiting for listener to finish its current recording...")
+                def worker():
+                    # Wait for the current recording to finish before testing.
+                    with VOICE_TEST_LOCK:
+                        try:
+                            time.sleep(WAKE_SECONDS + 0.5)
+                            audio = sd.rec(int(3 * SAMPLE_RATE),
+                                           samplerate=SAMPLE_RATE, channels=1,
+                                           dtype="float32")
+                            sd.wait()
+                            rms = float(np.sqrt(np.mean(np.square(
+                                audio[:, 0], dtype=np.float64))))
+                            result.set("Microphone test: RMS {:.4f} ({})".format(
+                                rms, "signal received" if rms > 0.005 else
+                                "quiet input; check input device"))
+                        except Exception as exc:
+                            logging.exception("Diagnostic microphone test failed.")
+                            result.set("Microphone test failed: " + str(exc)[:150])
+                        finally:
+                            VOICE_TEST_ACTIVE.clear()
+                threading.Thread(target=worker, daemon=True).start()
+
+            def speaker_test() -> None:
+                result.set("Playing test voice...")
+                threading.Thread(
+                    target=lambda: speak("Hello. I am Cirilla. Can you hear me clearly?"),
+                    daemon=True,
+                ).start()
+
+            tk.Button(buttons, text="TEST MICROPHONE", command=microphone_test,
+                      bg="#12334a", fg="white", padx=12).pack(side="left", padx=8)
+            tk.Button(buttons, text="TEST CIRILLA VOICE", command=speaker_test,
+                      bg="#12334a", fg="white", padx=12).pack(side="left", padx=8)
+
+            def refresh() -> None:
+                if not root.winfo_exists():
+                    return
+                data = voice_state_snapshot()
+                status.set("Wake listening: {} | {}".format(
+                    "ON" if config.get("wake_enabled", True) else "OFF",
+                    data["status"]))
+                heard.set("Last wake transcription: " + (data["text"] or "(none)"))
+                level.set("Last recorded microphone RMS: {:.4f}".format(data["level"]))
+                error.set("Listener last error: " + (data["error"] or "none"))
+                meter["value"] = min(100, data["level"] * 1200)
+                root.after(750, refresh)
+
+            def close() -> None:
+                diagnostics_open.clear()
+                root.destroy()
+            root.protocol("WM_DELETE_WINDOW", close)
+            refresh()
+            root.mainloop()
+        except Exception:
+            logging.exception("Voice diagnostics window failed.")
+        finally:
+            diagnostics_open.clear()
+
+    threading.Thread(target=show, name="MasumVoiceDiagnostics",
+                     daemon=True).start()
+
 
 def make_tray_image() -> Image.Image:
     image = Image.new("RGB", (64, 64), (4, 10, 20))
@@ -1573,6 +1717,10 @@ def build_menu() -> pystray.Menu:
         pystray.MenuItem(
             "Open Reliability Report",
             open_reliability_report,
+        ),
+        pystray.MenuItem(
+            "Open Voice Diagnostics",
+            open_voice_diagnostics,
         ),
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("Exit", exit_app),
