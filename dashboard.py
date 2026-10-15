@@ -586,13 +586,16 @@ if __name__ == "__main__":
             open_dashboard,
         ).start()
 
-    print("=" * 64)
-    print("🤖 MASUM AI AGENT 1.0.0")
-    print(f"Dashboard: http://{HOST}:{PORT}")
-    print(f"Local STT: {STT_SERVICE_URL}")
-    print("Security : local-only is recommended (127.0.0.1)")
-    print("Stop     : Ctrl + C")
-    print("=" * 64)
+    # PyInstaller --windowed has no reliable stdout console on Windows.
+    # Avoid emoji/console writes in frozen builds (cp1252 cannot encode them).
+    if not getattr(__import__("sys"), "frozen", False):
+        print("=" * 64)
+        print("MASUM AI AGENT — Local Brain")
+        print(f"Dashboard: http://{HOST}:{PORT}")
+        print(f"Local STT: {STT_SERVICE_URL}")
+        print("Security : local-only is recommended (127.0.0.1)")
+        print("Stop     : Ctrl + C")
+        print("=" * 64)
 
     uvicorn.run(
         app,
