@@ -55,7 +55,7 @@ jobs:
       - name: Build standalone AI Brain
         shell: pwsh
         run: |
-          python -m PyInstaller --noconfirm --clean --onefile --windowed --name MasumAIBrain --icon build\masum-ai-agent.ico --add-data "dashboard;dashboard" --copy-metadata mcp --recursive-copy-metadata mcp --copy-metadata openai-agents --collect-all agents --collect-all openai --collect-all ddgs --collect-all pypdf --collect-all docx --collect-all googleapiclient --collect-all google_auth_oauthlib dashboard.py
+          python -m PyInstaller --noconfirm --clean --onefile --console --name MasumAIBrain --icon build\masum-ai-agent.ico --add-data "dashboard;dashboard" --copy-metadata mcp --recursive-copy-metadata mcp --copy-metadata openai-agents --collect-all agents --collect-all openai --collect-all ddgs --collect-all pypdf --collect-all docx --collect-all googleapiclient --collect-all google_auth_oauthlib dashboard.py
 
       - name: Smoke test frozen AI Brain startup
         shell: pwsh
@@ -64,7 +64,9 @@ jobs:
           $env:DASHBOARD_AUTO_OPEN = "false"
           $env:DASHBOARD_HOST = "127.0.0.1"
           $env:DASHBOARD_PORT = "18765"
-          $process = Start-Process -FilePath "$PWD\dist\MasumAIBrain.exe" -PassThru
+          $outLog = Join-Path $env:RUNNER_TEMP "masum-brain-stdout.log"
+          $errLog = Join-Path $env:RUNNER_TEMP "masum-brain-stderr.log"
+          $process = Start-Process -FilePath "$PWD\dist\MasumAIBrain.exe" -PassThru -NoNewWindow -RedirectStandardOutput $outLog -RedirectStandardError $errLog
           try {
             $ready = $false
             for ($i = 0; $i -lt 90; $i++) {
@@ -87,6 +89,8 @@ jobs:
             }
             Write-Host "Frozen AI Brain smoke test passed."
           } finally {
+            if (Test-Path $outLog) { Get-Content $outLog -Tail 100 }
+            if (Test-Path $errLog) { Get-Content $errLog -Tail 120 }
             Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
           }
 
