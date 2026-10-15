@@ -57,6 +57,39 @@ jobs:
         run: |
           python -m PyInstaller --noconfirm --clean --onefile --windowed --name MasumAIBrain --icon build\masum-ai-agent.ico --add-data "dashboard;dashboard" --copy-metadata mcp --recursive-copy-metadata mcp --copy-metadata openai-agents --collect-all agents --collect-all openai --collect-all ddgs --collect-all pypdf --collect-all docx --collect-all googleapiclient --collect-all google_auth_oauthlib dashboard.py
 
+      - name: Smoke test frozen AI Brain startup
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $env:DASHBOARD_AUTO_OPEN = "false"
+          $env:DASHBOARD_HOST = "127.0.0.1"
+          $env:DASHBOARD_PORT = "18765"
+          $process = Start-Process -FilePath "$PWD\dist\MasumAIBrain.exe" -PassThru
+          try {
+            $ready = $false
+            for ($i = 0; $i -lt 90; $i++) {
+              Start-Sleep -Seconds 2
+              if ($process.HasExited) {
+                throw "Frozen AI Brain exited prematurely with code $($process.ExitCode)"
+              }
+              try {
+                $response = Invoke-RestMethod -Uri "http://127.0.0.1:18765/api/agents" -TimeoutSec 3
+                if ($null -ne $response.agents) {
+                  $ready = $true
+                  break
+                }
+              } catch {
+                # Waiting for frozen Python and FastAPI startup.
+              }
+            }
+            if (-not $ready) {
+              throw "Frozen AI Brain did not serve /api/agents within 180 seconds."
+            }
+            Write-Host "Frozen AI Brain smoke test passed."
+          } finally {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+          }
+
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup -y --no-progress
