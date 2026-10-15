@@ -294,13 +294,16 @@ def get_model(kind: str) -> WhisperModel:
 
 def record_wav(seconds: float) -> Path:
     frames = max(1, int(SAMPLE_RATE * seconds))
-    audio = sd.rec(
-        frames,
-        samplerate=SAMPLE_RATE,
-        channels=1,
-        dtype="float32",
-    )
-    sd.wait()
+    # The diagnostic microphone test and wake listener must never
+    # record from the same microphone simultaneously.
+    with VOICE_TEST_LOCK:
+        audio = sd.rec(
+            frames,
+            samplerate=SAMPLE_RATE,
+            channels=1,
+            dtype="float32",
+        )
+        sd.wait()
 
     level = float(np.sqrt(np.mean(np.square(audio[:, 0], dtype=np.float64))))
     update_voice_state(level=level, status="Captured audio")
