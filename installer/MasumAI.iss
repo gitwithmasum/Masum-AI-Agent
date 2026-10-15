@@ -1,5 +1,5 @@
 #define MyAppName "Masum AI Agent"
-#define MyAppVersion "1.0.2-rc2"
+#define MyAppVersion "1.0.2-rc3"
 #define MyAppPublisher "Masum Billah"
 #define MyAppExeName "MasumAIAgent.exe"
 
@@ -12,7 +12,7 @@ DefaultDirName={localappdata}\Programs\Masum AI Agent
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
 OutputDir=..\installer-output
-OutputBaseFilename=Masum-AI-Agent-Setup-v1.0.2-rc2
+OutputBaseFilename=Masum-AI-Agent-Setup-v1.0.2-rc3
 SetupIconFile=..\build\masum-ai-agent.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2
