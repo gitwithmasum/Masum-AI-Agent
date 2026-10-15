@@ -353,7 +353,19 @@ def listen(seconds: float, kind: str) -> str:
     path: Path | None = None
     try:
         path = record_wav(seconds)
-        return transcribe(path, kind)
+        if kind == "wake" and voice_state_snapshot()["level"] < 0.003:
+            update_voice_state(text="", detected=False, status="Quiet audio skipped")
+            return ""
+        result = transcribe(path, kind)
+        if kind == "wake":
+            # Whisper can echo initial_prompt on silent/ambiguous audio.
+            normalized = normalize_text(result)
+            if normalized.startswith("the assistant s name is") or normalized in {
+                "wake phrase", "the assistant s name is cirilla wake phrase",
+                "the assistant s name is geralt wake phrase",
+            }:
+                return ""
+        return result
     except Exception as error:
         logging.exception("Microphone/transcription failed.")
         global listener_last_error
